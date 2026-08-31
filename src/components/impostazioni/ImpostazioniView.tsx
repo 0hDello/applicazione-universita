@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import {
   Settings,
@@ -12,13 +12,85 @@ import {
   Download,
   RotateCcw,
   Save,
+  RefreshCw,
+  Sparkles,
+  DownloadCloud,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
+
+interface UpdateInfo {
+  status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev';
+  message: string;
+  percent?: number;
+  version?: string;
+}
 
 export const ImpostazioniView: React.FC = () => {
   const { userSettings, updateUserSettings } = useApp();
 
   const [formData, setFormData] = useState({ ...userSettings });
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [appVersion, setAppVersion] = useState('1.0.0');
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
+    status: 'idle',
+    message: '',
+  });
+
+  useEffect(() => {
+    try {
+      const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
+      if (electron && electron.ipcRenderer) {
+        electron.ipcRenderer.invoke('get-app-version').then((v: string) => {
+          if (v) setAppVersion(v);
+        }).catch(() => {});
+
+        const handleUpdaterStatus = (_: any, data: UpdateInfo) => {
+          setUpdateInfo(data);
+        };
+
+        electron.ipcRenderer.on('updater-status', handleUpdaterStatus);
+        return () => {
+          electron.ipcRenderer.removeListener('updater-status', handleUpdaterStatus);
+        };
+      }
+    } catch {
+      // Ambiente web
+    }
+  }, []);
+
+  const handleCheckForUpdates = () => {
+    try {
+      const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
+      if (electron && electron.ipcRenderer) {
+        setUpdateInfo({ status: 'checking', message: 'Controllo aggiornamenti in corso su GitHub...' });
+        electron.ipcRenderer.invoke('check-for-updates').catch((err: any) => {
+          setUpdateInfo({ status: 'error', message: err?.message || 'Errore durante la verifica.' });
+        });
+      } else {
+        setUpdateInfo({
+          status: 'dev',
+          message: 'Sei nell\'ambiente web/sviluppo (v1.0.0). Gli aggiornamenti si attivano nell\'app Windows installata.',
+        });
+      }
+    } catch {
+      setUpdateInfo({
+        status: 'error',
+        message: 'Impossibile verificare gli aggiornamenti in questa modalità.',
+      });
+    }
+  };
+
+  const handleInstallUpdate = () => {
+    try {
+      const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
+      if (electron && electron.ipcRenderer) {
+        electron.ipcRenderer.invoke('quit-and-install');
+      }
+    } catch {
+      // fallback
+    }
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -297,21 +369,97 @@ export const ImpostazioniView: React.FC = () => {
 
           <div className="flex items-center justify-between text-xs">
             <div>
-              <p className="font-semibold text-slate-900 dark:text-white">Ultimo backup</p>
-              <p className="text-[10px] text-slate-400">31 Maggio 2026, 09:30 • Eseguito</p>
+              <p className="font-semibold text-slate-900 dark:text-white">Esporta dati</p>
+              <p className="text-[10px] text-slate-400">Salva un file JSON di backup di tutti i tuoi dati</p>
             </div>
             <button
               type="button"
               onClick={exportBackupJSON}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Esegui backup ora</span>
+              <span>Scarica backup</span>
             </button>
           </div>
         </div>
 
-        {/* CARD 6: PRIVACY */}
+        {/* CARD 6: AGGIORNAMENTI APPLICAZIONE */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+              <span>Aggiornamenti & Versione</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 border border-blue-200/60 dark:border-blue-800">
+              v{appVersion}
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-3 text-xs">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white">Stato aggiornamenti</p>
+                <p className="text-[10px] text-slate-400">
+                  Verifica automatica con GitHub Releases
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleCheckForUpdates}
+                disabled={updateInfo.status === 'checking' || updateInfo.status === 'downloading'}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-all"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${updateInfo.status === 'checking' ? 'animate-spin' : ''}`} />
+                <span>{updateInfo.status === 'checking' ? 'Verifica in corso...' : 'Verifica ora'}</span>
+              </button>
+            </div>
+
+            {/* Status Feedback Box */}
+            {updateInfo.message && (
+              <div
+                className={`p-3 rounded-2xl border text-xs flex flex-col gap-2 ${
+                  updateInfo.status === 'downloaded'
+                    ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : updateInfo.status === 'available' || updateInfo.status === 'downloading'
+                    ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
+                    : updateInfo.status === 'error'
+                    ? 'bg-red-50/80 dark:bg-red-950/40 border-red-200 dark:border-red-800 text-red-900 dark:text-red-200'
+                    : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {updateInfo.status === 'downloaded' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                  {updateInfo.status === 'downloading' && <DownloadCloud className="w-4 h-4 text-blue-600 shrink-0 animate-bounce" />}
+                  {updateInfo.status === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
+                  <span className="font-medium text-[11px] leading-snug">{updateInfo.message}</span>
+                </div>
+
+                {/* Progress bar during download */}
+                {updateInfo.status === 'downloading' && typeof updateInfo.percent === 'number' && (
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden mt-1">
+                    <div
+                      className="bg-blue-600 h-full rounded-full transition-all duration-300"
+                      style={{ width: `${updateInfo.percent}%` }}
+                    />
+                  </div>
+                )}
+
+                {/* Restart Button if Downloaded */}
+                {updateInfo.status === 'downloaded' && (
+                  <button
+                    type="button"
+                    onClick={handleInstallUpdate}
+                    className="mt-1 w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors"
+                  >
+                    Riavvia e Installa Aggiornamento 🚀
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* CARD 7: PRIVACY */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
           <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
             <Shield className="w-4 h-4 text-blue-600" />
