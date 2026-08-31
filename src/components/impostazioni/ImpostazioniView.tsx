@@ -81,6 +81,25 @@ export const ImpostazioniView: React.FC = () => {
     }
   };
 
+  const handleDownloadUpdate = () => {
+    try {
+      const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
+      if (electron && electron.ipcRenderer) {
+        setUpdateInfo((prev) => ({
+          ...prev,
+          status: 'downloading',
+          message: 'Scaricamento aggiornamento in corso...',
+          percent: 0,
+        }));
+        electron.ipcRenderer.invoke('download-update').catch((err: any) => {
+          setUpdateInfo({ status: 'error', message: err?.message || 'Errore durante il download.' });
+        });
+      }
+    } catch {
+      // fallback
+    }
+  };
+
   const handleInstallUpdate = () => {
     try {
       const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
@@ -431,6 +450,7 @@ export const ImpostazioniView: React.FC = () => {
                   {(updateInfo.status === 'downloaded' || updateInfo.status === 'not-available') && (
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                   )}
+                  {updateInfo.status === 'available' && <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />}
                   {updateInfo.status === 'downloading' && <DownloadCloud className="w-4 h-4 text-blue-600 shrink-0 animate-bounce" />}
                   {updateInfo.status === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
                   <span className="font-medium text-[11px] leading-snug">{updateInfo.message}</span>
@@ -446,15 +466,36 @@ export const ImpostazioniView: React.FC = () => {
                   </div>
                 )}
 
-                {/* Restart Button if Downloaded */}
-                {updateInfo.status === 'downloaded' && (
+                {/* Button if Update Available: user decides when to download */}
+                {updateInfo.status === 'available' && (
                   <button
                     type="button"
-                    onClick={handleInstallUpdate}
-                    className="mt-1 w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors"
+                    onClick={handleDownloadUpdate}
+                    className="mt-1 w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-md transition-colors flex items-center justify-center gap-1.5"
                   >
-                    Riavvia e Installa Aggiornamento 🚀
+                    <DownloadCloud className="w-4 h-4" />
+                    <span>Scarica aggiornamento ora</span>
                   </button>
+                )}
+
+                {/* Restart Button if Downloaded: user decides when to restart */}
+                {updateInfo.status === 'downloaded' && (
+                  <div className="flex flex-col gap-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={handleInstallUpdate}
+                      className="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors"
+                    >
+                      Riavvia e Installa Aggiornamento 🚀
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUpdateInfo({ status: 'idle', message: '' })}
+                      className="w-full py-1.5 rounded-xl text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-semibold text-[11px] transition-colors text-center"
+                    >
+                      Riavvia più tardi
+                    </button>
+                  </div>
                 )}
               </div>
             )}

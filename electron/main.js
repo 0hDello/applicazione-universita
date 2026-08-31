@@ -10,9 +10,9 @@ const __dirname = path.dirname(__filename);
 const isDev = process.env.NODE_ENV === 'development';
 let mainWindow = null;
 
-// Configurazione autoUpdater
-autoUpdater.autoDownload = true;
-autoUpdater.autoInstallOnAppQuit = true;
+// Configurazione autoUpdater: NESSUN download o riavvio automatico senza consenso
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = false;
 
 function sendStatusToWindow(channel, data) {
   if (mainWindow && mainWindow.webContents) {
@@ -30,7 +30,7 @@ autoUpdater.on('checking-for-update', () => {
 autoUpdater.on('update-available', (info) => {
   sendStatusToWindow('updater-status', {
     status: 'available',
-    message: `Nuova versione ${info.version} disponibile! Download in corso...`,
+    message: `È disponibile la versione ${info.version}! Clicca su "Scarica aggiornamento" per iniziare.`,
     version: info.version,
   });
 });
@@ -38,7 +38,7 @@ autoUpdater.on('update-available', (info) => {
 autoUpdater.on('update-not-available', () => {
   sendStatusToWindow('updater-status', {
     status: 'not-available',
-    message: "L'applicazione è aggiornata all'ultima versione.",
+    message: "L'applicazione è all'ultima versione disponibile.",
   });
 });
 
@@ -70,7 +70,7 @@ autoUpdater.on('update-downloaded', (info) => {
   sendStatusToWindow('updater-status', {
     status: 'downloaded',
     version: info.version,
-    message: `Versione ${info.version} scaricata! Riavvia per applicare l'aggiornamento.`,
+    message: `Versione ${info.version} scaricata! Puoi continuare a usare l'app e riavviare quando preferisci.`,
   });
 });
 
@@ -89,7 +89,16 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
+ipcMain.handle('download-update', async () => {
+  try {
+    return await autoUpdater.downloadUpdate();
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+});
+
 ipcMain.handle('quit-and-install', () => {
+  // isSilent = false, isForceRunAfter = true
   autoUpdater.quitAndInstall(false, true);
 });
 
