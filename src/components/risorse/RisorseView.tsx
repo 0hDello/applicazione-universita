@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { ResourceType } from '../../types';
 import {
@@ -6,7 +6,6 @@ import {
   Search,
   Plus,
   Upload,
-  SlidersHorizontal,
   FileText,
   Presentation,
   Link2,
@@ -15,40 +14,31 @@ import {
   FileSpreadsheet,
   Dumbbell,
   Star,
-  MoreVertical,
   HardDrive,
   X,
+  Trash2,
+  ExternalLink,
+  FolderOpen,
 } from 'lucide-react';
 
 export const RisorseView: React.FC = () => {
-  const { corsi, risorse, toggleFavoriteResource, addRisorsa } = useApp();
+  const { corsi, risorse, toggleFavoriteResource, addRisorsa, deleteRisorsa } = useApp();
   const [selectedType, setSelectedType] = useState<string>('Tutti');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('Tutti');
   const [searchFilter, setSearchFilter] = useState<string>('');
   const [isAddingResource, setIsAddingResource] = useState(false);
 
-  // New resource state
+  // Hidden file input ref for native file uploads
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Form state for manual resource / link addition
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<ResourceType>('PDF');
   const [newCourse, setNewCourse] = useState('');
-  const [newSize, setNewSize] = useState('1.5 MB');
+  const [newUrl, setNewUrl] = useState('');
+  const [newSize, setNewSize] = useState('');
 
-  const handleCreateResource = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTitle) return;
-    addRisorsa({
-      title: newTitle,
-      type: newType,
-      size: newSize,
-      uploadDate: 'Oggi',
-      courseName: newCourse,
-      isFavorite: false,
-      openCount: 1,
-    });
-    setIsAddingResource(false);
-    setNewTitle('');
-  };
-
+  // Helper to get matching icon
   const getResourceTypeIcon = (type: ResourceType) => {
     switch (type) {
       case 'PDF':
@@ -65,19 +55,106 @@ export const RisorseView: React.FC = () => {
         return <FileSpreadsheet className="w-5 h-5 text-teal-500" />;
       case 'Esercizio':
         return <Dumbbell className="w-5 h-5 text-indigo-500" />;
+      default:
+        return <FileText className="w-5 h-5 text-slate-500" />;
     }
   };
 
-  const resourceCategories = [
-    { type: 'PDF', count: 128, icon: FileText, color: 'text-red-500 bg-red-50' },
-    { type: 'Slide', count: 86, icon: Presentation, color: 'text-amber-500 bg-amber-50' },
-    { type: 'Link', count: 54, icon: Link2, color: 'text-emerald-500 bg-emerald-50' },
-    { type: 'Video', count: 32, icon: Video, color: 'text-purple-500 bg-purple-50' },
-    { type: 'Registrazioni', count: 27, icon: Mic, color: 'text-blue-500 bg-blue-50' },
-    { type: 'Formulari', count: 18, icon: FileSpreadsheet, color: 'text-teal-500 bg-teal-50' },
-    { type: 'Esercizi', count: 64, icon: Dumbbell, color: 'text-indigo-500 bg-indigo-50' },
+  // Helper to format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  };
+
+  // Helper to guess resource type from filename extension
+  const guessTypeFromFileName = (fileName: string): ResourceType => {
+    const ext = fileName.split('.').pop()?.toLowerCase();
+    if (ext === 'pdf') return 'PDF';
+    if (['ppt', 'pptx', 'key', 'odp'].includes(ext || '')) return 'Slide';
+    if (['mp4', 'mkv', 'avi', 'mov', 'webm'].includes(ext || '')) return 'Video';
+    if (['mp3', 'wav', 'm4a', 'aac', 'ogg'].includes(ext || '')) return 'Registrazione';
+    if (['xlsx', 'xls', 'csv', 'ods'].includes(ext || '')) return 'Formulario';
+    if (['doc', 'docx', 'txt', 'md'].includes(ext || '')) return 'Esercizio';
+    return 'PDF';
+  };
+
+  // Handle native file selection
+  const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const today = new Date().toLocaleDateString('it-IT', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    Array.from(files).forEach((file) => {
+      const detectedType = guessTypeFromFileName(file.name);
+      addRisorsa({
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        type: detectedType,
+        size: formatFileSize(file.size),
+        uploadDate: today,
+        courseName: selectedCourseFilter !== 'Tutti' ? selectedCourseFilter : corsi[0]?.name || 'Generale',
+        isFavorite: false,
+        openCount: 0,
+      });
+    });
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Handle manual modal submission
+  const handleCreateResource = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim()) return;
+
+    const today = new Date().toLocaleDateString('it-IT', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+
+    addRisorsa({
+      title: newTitle.trim(),
+      type: newType,
+      size: newSize.trim() || (newType === 'Link' ? 'Link web' : 'File'),
+      uploadDate: today,
+      courseName: newCourse || corsi[0]?.name || 'Generale',
+      isFavorite: false,
+      url: newUrl.trim() || undefined,
+      openCount: 0,
+    });
+
+    setIsAddingResource(false);
+    setNewTitle('');
+    setNewUrl('');
+    setNewSize('');
+  };
+
+  // Dynamic category cards with real counts
+  const categoryDefinitions: { type: ResourceType; label: string; icon: React.FC<{ className?: string }>; color: string }[] = [
+    { type: 'PDF', label: 'PDF', icon: FileText, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
+    { type: 'Slide', label: 'Slide', icon: Presentation, color: 'text-amber-500 bg-amber-50 dark:bg-amber-950/40' },
+    { type: 'Link', label: 'Link', icon: Link2, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' },
+    { type: 'Video', label: 'Video', icon: Video, color: 'text-purple-500 bg-purple-50 dark:bg-purple-950/40' },
+    { type: 'Registrazione', label: 'Registrazioni', icon: Mic, color: 'text-blue-500 bg-blue-50 dark:bg-blue-950/40' },
+    { type: 'Formulario', label: 'Formulari', icon: FileSpreadsheet, color: 'text-teal-500 bg-teal-50 dark:bg-teal-950/40' },
+    { type: 'Esercizio', label: 'Esercizi', icon: Dumbbell, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
   ];
 
+  // Unique list of course names for filtering
+  const courseOptions = Array.from(
+    new Set([...corsi.map((c) => c.name), ...risorse.map((r) => r.courseName)])
+  ).filter(Boolean);
+
+  // Filtered resources
   const filteredRisorse = risorse.filter((r) => {
     if (selectedType !== 'Tutti' && r.type !== selectedType) return false;
     if (selectedCourseFilter !== 'Tutti' && r.courseName !== selectedCourseFilter) return false;
@@ -86,9 +163,43 @@ export const RisorseView: React.FC = () => {
   });
 
   const favoritesList = risorse.filter((r) => r.isFavorite);
+  const recentList = [...risorse].slice(-4).reverse();
+
+  // Approximate storage calculation
+  const calculateTotalMB = (): number => {
+    let totalMB = 0;
+    risorse.forEach((r) => {
+      if (!r.size) return;
+      const sizeStr = r.size.toUpperCase();
+      if (sizeStr.includes('MB')) {
+        const val = parseFloat(sizeStr.replace('MB', '').trim());
+        if (!isNaN(val)) totalMB += val;
+      } else if (sizeStr.includes('KB')) {
+        const val = parseFloat(sizeStr.replace('KB', '').trim());
+        if (!isNaN(val)) totalMB += val / 1024;
+      } else if (sizeStr.includes('GB')) {
+        const val = parseFloat(sizeStr.replace('GB', '').trim());
+        if (!isNaN(val)) totalMB += val * 1024;
+      }
+    });
+    return totalMB;
+  };
+
+  const totalUsedMB = calculateTotalMB();
+  const totalLimitMB = 10 * 1024; // 10 GB limit
+  const usedPercent = Math.min(100, (totalUsedMB / totalLimitMB) * 100);
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-8">
+      {/* Hidden file input for native uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleNativeFileUpload}
+        multiple
+        className="hidden"
+      />
+
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col gap-6">
         {/* Title Header & Main Actions */}
@@ -106,14 +217,14 @@ export const RisorseView: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setIsAddingResource(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              <span>Aggiungi risorsa</span>
+              <span>Aggiungi risorsa / Link</span>
             </button>
             <button
-              onClick={() => setIsAddingResource(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
             >
               <Upload className="w-4 h-4" />
               <span>Carica file</span>
@@ -130,20 +241,22 @@ export const RisorseView: React.FC = () => {
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
               placeholder="Cerca risorse..."
-              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+              className="w-full pl-10 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <select
               value={selectedCourseFilter}
               onChange={(e) => setSelectedCourseFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
             >
-              <option value="Tutti">Tutti i corsi</option>
-              <option value="Analisi Matematica I">Analisi Matematica I</option>
-              <option value="Fisica Generale I">Fisica Generale I</option>
-              <option value="Chimica Generale">Chimica Generale</option>
+              <option value="Tutti">Tutti i corsi ({corsi.length})</option>
+              {courseOptions.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
 
             <select
@@ -152,97 +265,158 @@ export const RisorseView: React.FC = () => {
               className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
             >
               <option value="Tutti">Tutti i tipi</option>
-              <option value="PDF">PDF</option>
-              <option value="Slide">Slide</option>
-              <option value="Link">Link</option>
-              <option value="Video">Video</option>
-              <option value="Registrazione">Registrazione</option>
-              <option value="Formulario">Formulario</option>
+              {categoryDefinitions.map((cat) => (
+                <option key={cat.type} value={cat.type}>
+                  {cat.label} ({risorse.filter((r) => r.type === cat.type).length})
+                </option>
+              ))}
             </select>
-
-            <button className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200">
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <span>Filtri</span>
-            </button>
           </div>
         </div>
 
-        {/* 7 Resource Category Count Cards */}
+        {/* 7 Resource Category Count Cards (Real Dynamic Counts) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-          {resourceCategories.map((cat) => {
+          {categoryDefinitions.map((cat) => {
             const Icon = cat.icon;
+            const realCount = risorse.filter((r) => r.type === cat.type).length;
+            const isSelected = selectedType === cat.type;
+
             return (
               <button
                 key={cat.type}
-                onClick={() => setSelectedType(selectedType === cat.type ? 'Tutti' : cat.type)}
-                className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1.5 text-center ${
-                  selectedType === cat.type
+                onClick={() => setSelectedType(isSelected ? 'Tutti' : cat.type)}
+                className={`p-3 rounded-2xl border transition-all flex flex-col items-center gap-1.5 text-center cursor-pointer ${
+                  isSelected
                     ? 'bg-blue-50 dark:bg-blue-950/40 border-blue-500 shadow-xs'
-                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200'
+                    : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700'
                 }`}
               >
-                <div className={`w-8 h-8 rounded-xl ${cat.color} dark:bg-slate-800 flex items-center justify-center`}>
+                <div className={`w-8 h-8 rounded-xl ${cat.color} flex items-center justify-center`}>
                   <Icon className="w-4 h-4" />
                 </div>
                 <span className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                  {cat.type}
+                  {cat.label}
                 </span>
-                <span className="text-[10px] text-slate-400 font-semibold">{cat.count}</span>
+                <span
+                  className={`text-[10px] font-bold ${
+                    realCount > 0 ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400'
+                  }`}
+                >
+                  {realCount}
+                </span>
               </button>
             );
           })}
         </div>
 
-        {/* Main Resource List */}
+        {/* Main Resource List / Real Data Table */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Tutte le risorse</h4>
-            <span className="text-xs text-slate-400">Mostra 1–{filteredRisorse.length} di 409 risorse</span>
+            <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+              {selectedType === 'Tutti' ? 'Tutte le risorse' : `Risorse: ${selectedType}`}
+            </h4>
+            <span className="text-xs text-slate-400 font-medium">
+              Mostra {filteredRisorse.length} di {risorse.length} {risorse.length === 1 ? 'risorsa' : 'risorse'}
+            </span>
           </div>
 
-          <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-            {filteredRisorse.map((res) => (
-              <div
-                key={res.id}
-                className="py-3 flex items-center justify-between gap-4 group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 px-2 rounded-xl transition-colors"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                    {getResourceTypeIcon(res.type)}
-                  </div>
-                  <div>
-                    <h5 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">
-                      {res.title}
-                    </h5>
-                    <p className="text-[10px] text-slate-400">
-                      {res.type} • {res.size || 'Link web'} • Caricato il {res.uploadDate}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold">
-                    {res.courseName}
-                  </span>
-
-                  <button
-                    onClick={() => toggleFavoriteResource(res.id)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-amber-500 transition-colors"
-                  >
-                    <Star
-                      className={`w-4 h-4 ${
-                        res.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
-                      }`}
-                    />
-                  </button>
-
-                  <button className="p-1 rounded-lg text-slate-300 hover:text-slate-600 dark:hover:text-slate-200">
-                    <MoreVertical className="w-4 h-4" />
-                  </button>
-                </div>
+          {filteredRisorse.length === 0 ? (
+            <div className="py-12 px-4 flex flex-col items-center justify-center text-center gap-3">
+              <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                <FolderOpen className="w-7 h-7" />
               </div>
-            ))}
-          </div>
+              <div>
+                <h5 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {searchFilter || selectedType !== 'Tutti' || selectedCourseFilter !== 'Tutti'
+                    ? 'Nessuna risorsa trovata per i filtri selezionati'
+                    : 'Nessuna risorsa ancora caricata'}
+                </h5>
+                <p className="text-xs text-slate-400 max-w-sm mt-1">
+                  {searchFilter || selectedType !== 'Tutti' || selectedCourseFilter !== 'Tutti'
+                    ? 'Prova a reimpostare i filtri per vedere tutte le risorse.'
+                    : 'Carica slide, PDF, link web o registrazioni per averli sempre a portata di mano per i tuoi esami.'}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-xs hover:bg-blue-700 transition-colors"
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Carica file dal computer</span>
+                </button>
+                <button
+                  onClick={() => setIsAddingResource(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Aggiungi link / risorsa</span>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
+              {filteredRisorse.map((res) => (
+                <div
+                  key={res.id}
+                  className="py-3 flex items-center justify-between gap-4 group hover:bg-slate-50/60 dark:hover:bg-slate-800/40 px-2 rounded-xl transition-colors"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                      {getResourceTypeIcon(res.type)}
+                    </div>
+                    <div className="min-w-0">
+                      <h5 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors truncate">
+                        {res.title}
+                      </h5>
+                      <p className="text-[10px] text-slate-400">
+                        {res.type} • {res.size || 'Link web'} • Caricato il {res.uploadDate}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold max-w-[120px] truncate">
+                      {res.courseName}
+                    </span>
+
+                    {res.url && (
+                      <a
+                        href={res.url.startsWith('http') ? res.url : `https://${res.url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
+                        title="Apri link"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    )}
+
+                    <button
+                      onClick={() => toggleFavoriteResource(res.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-amber-500 transition-colors"
+                      title={res.isFavorite ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                    >
+                      <Star
+                        className={`w-4 h-4 ${
+                          res.isFavorite ? 'fill-amber-400 text-amber-400' : 'text-slate-300'
+                        }`}
+                      />
+                    </button>
+
+                    <button
+                      onClick={() => deleteRisorsa(res.id)}
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                      title="Elimina risorsa"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -254,12 +428,34 @@ export const RisorseView: React.FC = () => {
             <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400">
               CARICAMENTI RECENTI
             </h4>
-            <button className="text-xs font-bold text-blue-600 hover:underline">Vedi tutti</button>
+            <span className="text-[10px] font-bold text-blue-600">{recentList.length}</span>
           </div>
 
-          <div className="flex flex-col gap-2.5 text-xs text-slate-500">
-            Nessun caricamento recente.
-          </div>
+          {recentList.length === 0 ? (
+            <p className="text-xs text-slate-400 py-2">Nessun caricamento recente.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {recentList.map((res) => (
+                <div
+                  key={res.id}
+                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {getResourceTypeIcon(res.type)}
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-[11px] truncate max-w-[130px]">
+                        {res.title}
+                      </p>
+                      <span className="text-[9px] text-slate-400 block truncate">{res.courseName}</span>
+                    </div>
+                  </div>
+                  <span className="px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/40 text-blue-600 text-[9px] font-bold shrink-0">
+                    {res.type}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Risorse preferite */}
@@ -268,75 +464,96 @@ export const RisorseView: React.FC = () => {
             <h4 className="font-bold text-xs uppercase tracking-wider text-slate-400">
               RISORSE PREFERITE
             </h4>
-            <button className="text-xs font-bold text-blue-600 hover:underline">Vedi tutti</button>
+            <span className="text-[10px] font-bold text-amber-600">{favoritesList.length}</span>
           </div>
 
-          <div className="flex flex-col gap-2">
-            {favoritesList.slice(0, 4).map((res) => (
-              <div
-                key={res.id}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
-              >
-                <div className="flex items-center gap-2">
-                  {getResourceTypeIcon(res.type)}
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white text-[11px] truncate max-w-[140px]">
-                      {res.title}
-                    </p>
-                    <span className="text-[9px] text-slate-400">{res.courseName}</span>
+          {favoritesList.length === 0 ? (
+            <p className="text-xs text-slate-400 py-2">
+              Nessuna risorsa nei preferiti. Clicca sulla stella ⭐ per aggiungerla.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {favoritesList.slice(0, 5).map((res) => (
+                <div
+                  key={res.id}
+                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    {getResourceTypeIcon(res.type)}
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-900 dark:text-white text-[11px] truncate max-w-[130px]">
+                        {res.title}
+                      </p>
+                      <span className="text-[9px] text-slate-400 block truncate">{res.courseName}</span>
+                    </div>
                   </div>
+                  <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 text-[9px] font-bold shrink-0">
+                    {res.type}
+                  </span>
                 </div>
-                <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/40 text-amber-600 text-[9px] font-bold">
-                  {res.type}
-                </span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Spazio Utilizzato Widget */}
+        {/* Spazio Utilizzato Widget (Calcolato sui dati reali) */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <HardDrive className="w-4 h-4 text-blue-600" />
               <h4 className="font-bold text-xs text-slate-900 dark:text-white">Spazio utilizzato</h4>
             </div>
-            <button className="text-[10px] font-bold text-blue-600 hover:underline">Gestisci spazio</button>
+            <span className="text-[10px] text-slate-400 font-semibold">{risorse.length} file</span>
           </div>
 
           <div>
-            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              <span>0 GB di 10 GB utilizzati</span>
-              <span className="text-blue-600">0%</span>
+            <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+              <span>
+                {totalUsedMB > 1024
+                  ? `${(totalUsedMB / 1024).toFixed(2)} GB`
+                  : `${totalUsedMB.toFixed(1)} MB`}{' '}
+                di 10 GB
+              </span>
+              <span className="text-blue-600 dark:text-blue-400 font-extrabold">
+                {usedPercent > 0 && usedPercent < 0.1 ? '<0.1%' : `${usedPercent.toFixed(1)}%`}
+              </span>
             </div>
             <div className="h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-              <div className="h-full bg-blue-600 rounded-full w-[0%]" />
+              <div
+                className="h-full bg-blue-600 rounded-full transition-all duration-500"
+                style={{ width: `${Math.max(usedPercent, totalUsedMB > 0 ? 2 : 0)}%` }}
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Modal Aggiungi Risorsa */}
+      {/* Modal Aggiungi Risorsa / Link */}
       {isAddingResource && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Nuova Risorsa</h3>
-              <button onClick={() => setIsAddingResource(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <button
+                onClick={() => setIsAddingResource(false)}
+                className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleCreateResource} className="flex flex-col gap-4 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Nome risorsa</label>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Titolo risorsa *
+                </label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Es. Formulario Integrali"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                  placeholder="Es. Slide Lezione 4 - Derivate"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
               </div>
 
@@ -350,10 +567,11 @@ export const RisorseView: React.FC = () => {
                   >
                     <option value="PDF">PDF</option>
                     <option value="Slide">Slide</option>
-                    <option value="Link">Link</option>
+                    <option value="Link">Link web</option>
                     <option value="Video">Video</option>
                     <option value="Registrazione">Registrazione</option>
                     <option value="Formulario">Formulario</option>
+                    <option value="Esercizio">Esercizio</option>
                   </select>
                 </div>
 
@@ -365,37 +583,55 @@ export const RisorseView: React.FC = () => {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   >
                     <option value="">Seleziona corso...</option>
-                    {corsi.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
+                    {corsi.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
                     ))}
+                    {corsi.length === 0 && <option value="Generale">Generale</option>}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Dimensione o URL</label>
-                <input
-                  type="text"
-                  value={newSize}
-                  onChange={(e) => setNewSize(e.target.value)}
-                  placeholder="Es. 2.4 MB o https://..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                />
-              </div>
+              {newType === 'Link' ? (
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">URL Link</label>
+                  <input
+                    type="url"
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Dimensione stimata (opzionale)
+                  </label>
+                  <input
+                    type="text"
+                    value={newSize}
+                    onChange={(e) => setNewSize(e.target.value)}
+                    placeholder="Es. 2.4 MB"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </div>
+              )}
 
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddingResource(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 font-semibold"
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold transition-colors"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
                 >
-                  Aggiungi
+                  Aggiungi risorsa
                 </button>
               </div>
             </form>

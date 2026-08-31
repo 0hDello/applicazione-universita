@@ -44,6 +44,7 @@ interface AppContextType {
   risorse: Risorsa[];
   toggleFavoriteResource: (resourceId: string) => void;
   addRisorsa: (resource: Omit<Risorsa, 'id'>) => void;
+  deleteRisorsa: (resourceId: string) => void;
   semesterGoals: SemesterGoal[];
   weeklyGoals: WeeklyGoal[];
   habits: Habit[];
@@ -203,6 +204,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRisorse((prev) => [newRisorsa, ...prev]);
   };
 
+  const deleteRisorsa = (resourceId: string) => {
+    setRisorse((prev) => prev.filter((r) => r.id !== resourceId));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -226,6 +231,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         risorse,
         toggleFavoriteResource,
         addRisorsa,
+        deleteRisorsa,
         semesterGoals,
         weeklyGoals,
         habits,
