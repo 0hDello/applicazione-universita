@@ -117,10 +117,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Apply dark mode class to html element
   useEffect(() => {
-    if (userSettings.theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    const applyTheme = () => {
+      const isDark =
+        userSettings.theme === 'dark' ||
+        (userSettings.theme === 'system' &&
+          typeof window !== 'undefined' &&
+          window.matchMedia &&
+          window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
+      }
+    };
+
+    applyTheme();
+
+    if (userSettings.theme === 'system' && typeof window !== 'undefined' && window.matchMedia) {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = () => applyTheme();
+      mediaQuery.addEventListener('change', listener);
+      return () => mediaQuery.removeEventListener('change', listener);
     }
   }, [userSettings.theme]);
 

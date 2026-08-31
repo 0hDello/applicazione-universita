@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { CorsoDetailModal } from './CorsoDetailModal';
+import { TimeSlotPicker } from '../common/TimeSlotPicker';
 import {
   GraduationCap,
   BookOpen,
@@ -22,7 +23,8 @@ export const CorsiView: React.FC = () => {
   const [newCourseProfessor, setNewCourseProfessor] = useState('');
   const [newCourseSemestre, setNewCourseSemestre] = useState('1° Semestre');
   const [newCourseAula, setNewCourseAula] = useState('');
-  const [newCourseOrario, setNewCourseOrario] = useState('');
+  const [newStartTime, setNewStartTime] = useState('09:00');
+  const [newEndTime, setNewEndTime] = useState('11:00');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSemestre, setSelectedSemestre] = useState('Tutti');
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
@@ -324,9 +326,9 @@ export const CorsiView: React.FC = () => {
                   professor: newCourseProfessor.trim(),
                   semestre: newCourseSemestre,
                   aulaAbituale: newCourseAula.trim(),
-                  orarioAbituale: newCourseOrario.trim(),
+                  orarioAbituale: `${newStartTime} - ${newEndTime}`,
                   progress: 0,
-                  nextLecture: { date: '-', dayName: 'Da definire', time: newCourseOrario || '-', room: newCourseAula || '-' },
+                  nextLecture: { date: '-', dayName: 'Da definire', time: `${newStartTime} - ${newEndTime}`, room: newCourseAula || '-' },
                   notesOrganized: 0,
                   repetitionsDone: 0,
                   repetitionsTotal: 0,
@@ -341,7 +343,6 @@ export const CorsiView: React.FC = () => {
                 setNewCourseCFU('6');
                 setNewCourseProfessor('');
                 setNewCourseAula('');
-                setNewCourseOrario('');
               }}
               className="flex flex-col gap-3 text-xs"
             >
@@ -393,13 +394,13 @@ export const CorsiView: React.FC = () => {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Semestre</label>
                   <select
                     value={newCourseSemestre}
                     onChange={(e) => setNewCourseSemestre(e.target.value)}
-                    className="w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   >
                     <option value="1° Semestre">1° Semestre</option>
                     <option value="2° Semestre">2° Semestre</option>
@@ -407,26 +408,27 @@ export const CorsiView: React.FC = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Aula</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Aula abituale</label>
                   <input
                     type="text"
                     value={newCourseAula}
                     onChange={(e) => setNewCourseAula(e.target.value)}
-                    placeholder="Aula 4B"
-                    className="w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Orario</label>
-                  <input
-                    type="text"
-                    value={newCourseOrario}
-                    onChange={(e) => setNewCourseOrario(e.target.value)}
-                    placeholder="09:00-11:00"
-                    className="w-full px-2 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                    placeholder="Es. Aula 4B"
+                    className="w-full px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   />
                 </div>
               </div>
+
+              {/* Time Slot Picker for Course Usual Time */}
+              <TimeSlotPicker
+                label="Orario Abituale Lezioni"
+                startTime={newStartTime}
+                endTime={newEndTime}
+                onChange={(s, e) => {
+                  setNewStartTime(s);
+                  setNewEndTime(e);
+                }}
+              />
 
               <div className="flex justify-end gap-3 pt-2">
                 <button

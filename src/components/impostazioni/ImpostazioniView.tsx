@@ -405,14 +405,17 @@ export const ImpostazioniView: React.FC = () => {
               <button
                 key={t}
                 type="button"
-                onClick={() => setFormData({ ...formData, theme: t })}
-                className={`p-3 rounded-2xl border font-bold capitalize flex flex-col items-center gap-2 ${
+                onClick={() => {
+                  setFormData((prev) => ({ ...prev, theme: t }));
+                  updateUserSettings({ theme: t });
+                }}
+                className={`p-3 rounded-2xl border font-bold capitalize flex flex-col items-center gap-2 transition-all ${
                   formData.theme === t
-                    ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/40 text-blue-600'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-600'
+                    ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shadow-xs'
+                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
-                <span>{t === 'light' ? 'Chiaro' : t === 'dark' ? 'Scuro' : 'Sistema'}</span>
+                <span>{t === 'light' ? '☀️ Chiaro' : t === 'dark' ? '🌙 Scuro' : '💻 Sistema'}</span>
               </button>
             ))}
           </div>

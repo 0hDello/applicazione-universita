@@ -15,6 +15,7 @@ import {
   ExternalLink,
   FolderOpen,
 } from 'lucide-react';
+import { TimeSlotPicker } from '../common/TimeSlotPicker';
 
 interface CorsoDetailModalProps {
   course: Corso;
@@ -37,11 +38,17 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
 
   const [activeTab, setActiveTab] = useState<'lezioni' | 'programma' | 'risorse' | 'info'>('lezioni');
 
+  // Initial time parsing
+  const initialTimeParts = (course.orarioAbituale || '09:00 - 11:00').split('-').map((s) => s.trim());
+  const defaultStart = initialTimeParts[0]?.includes(':') ? initialTimeParts[0] : '09:00';
+  const defaultEnd = initialTimeParts[1]?.includes(':') ? initialTimeParts[1] : '11:00';
+
   // New Lecture Form State
   const [isAddingLezione, setIsAddingLezione] = useState(false);
   const [newLezioneTitle, setNewLezioneTitle] = useState('');
   const [newLezioneDate, setNewLezioneDate] = useState(new Date().toISOString().split('T')[0]);
-  const [newLezioneTime, setNewLezioneTime] = useState(course.orarioAbituale || '09:00 - 11:00');
+  const [newStartTime, setNewStartTime] = useState(defaultStart);
+  const [newEndTime, setNewEndTime] = useState(defaultEnd);
   const [newLezioneRoom, setNewLezioneRoom] = useState(course.aulaAbituale || '');
   const [newLezioneTopics, setNewLezioneTopics] = useState('');
   const [newLezioneNotes, setNewLezioneNotes] = useState('');
@@ -59,7 +66,8 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
   const [editCFU, setEditCFU] = useState(String(course.cfu));
   const [editSemestre, setEditSemestre] = useState(course.semestre || '1° Semestre');
   const [editAula, setEditAula] = useState(course.aulaAbituale || '');
-  const [editOrario, setEditOrario] = useState(course.orarioAbituale || '');
+  const [editStartTime, setEditStartTime] = useState(defaultStart);
+  const [editEndTime, setEditEndTime] = useState(defaultEnd);
   const [editLink, setEditLink] = useState(course.linkAulaVirtuale || '');
   const [editNote, setEditNote] = useState(course.noteCorso || '');
 
@@ -85,7 +93,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
       cfu: parseInt(editCFU) || course.cfu,
       semestre: editSemestre,
       aulaAbituale: editAula.trim(),
-      orarioAbituale: editOrario.trim(),
+      orarioAbituale: `${editStartTime} - ${editEndTime}`,
       linkAulaVirtuale: editLink.trim(),
       noteCorso: editNote.trim(),
     });
@@ -100,7 +108,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
       number: lezioni.length + 1,
       title: newLezioneTitle.trim(),
       date: newLezioneDate,
-      time: newLezioneTime.trim(),
+      time: `${newStartTime} - ${newEndTime}`,
       room: newLezioneRoom.trim(),
       topicsCovered: newLezioneTopics.trim() || newLezioneTitle.trim(),
       notes: newLezioneNotes.trim(),
@@ -629,7 +637,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Data Lezione</label>
                   <input
                     type="date"
                     value={newLezioneDate}
@@ -637,19 +645,6 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Orario</label>
-                  <input
-                    type="text"
-                    value={newLezioneTime}
-                    onChange={(e) => setNewLezioneTime(e.target.value)}
-                    placeholder="Es. 09:00 - 11:00"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Aula</label>
                   <input
@@ -660,18 +655,29 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   />
                 </div>
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Stato Lezione</label>
-                  <select
-                    value={newLezioneStatus}
-                    onChange={(e) => setNewLezioneStatus(e.target.value as Lezione['status'])}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  >
-                    <option value="svolta">✓ Svolta</option>
-                    <option value="da_recuperare">⚠️ Da recuperare</option>
-                    <option value="programmata">📅 Programmata</option>
-                  </select>
-                </div>
+              </div>
+
+              {/* Time Slot Picker for Lecture */}
+              <TimeSlotPicker
+                startTime={newStartTime}
+                endTime={newEndTime}
+                onChange={(s, e) => {
+                  setNewStartTime(s);
+                  setNewEndTime(e);
+                }}
+              />
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Stato Lezione</label>
+                <select
+                  value={newLezioneStatus}
+                  onChange={(e) => setNewLezioneStatus(e.target.value as Lezione['status'])}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                >
+                  <option value="svolta">✓ Svolta</option>
+                  <option value="da_recuperare">⚠️ Da recuperare</option>
+                  <option value="programmata">📅 Programmata</option>
+                </select>
               </div>
 
               <div>
@@ -801,27 +807,26 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Orario abituale</label>
-                  <input
-                    type="text"
-                    value={editOrario}
-                    onChange={(e) => setEditOrario(e.target.value)}
-                    placeholder="Es. 09:00 - 11:00"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Link aula virtuale</label>
-                  <input
-                    type="text"
-                    value={editLink}
-                    onChange={(e) => setEditLink(e.target.value)}
-                    placeholder="Es. https://teams.microsoft.com/..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  />
-                </div>
+              {/* Time Slot Picker for Course Usual Time */}
+              <TimeSlotPicker
+                label="Orario Abituale Lezioni"
+                startTime={editStartTime}
+                endTime={editEndTime}
+                onChange={(s, e) => {
+                  setEditStartTime(s);
+                  setEditEndTime(e);
+                }}
+              />
+
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Link aula virtuale (Teams / Zoom / Meet)</label>
+                <input
+                  type="text"
+                  value={editLink}
+                  onChange={(e) => setEditLink(e.target.value)}
+                  placeholder="Es. https://teams.microsoft.com/..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                />
               </div>
 
               <div>

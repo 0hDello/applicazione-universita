@@ -246,3 +246,28 @@ export const ANNI_DI_CORSO: string[] = [
   'Master Universitario',
   'Dottorato di Ricerca (PhD)'
 ];
+
+export interface TimeSlotOption {
+  label: string;
+  start: string;
+  end: string;
+  tag?: string;
+}
+
+export const FASCE_ORARIE_UNIVERSITA: TimeSlotOption[] = [
+  { label: '08:30 - 10:30', start: '08:30', end: '10:30', tag: 'Mattina' },
+  { label: '09:00 - 11:00', start: '09:00', end: '11:00', tag: 'Mattina' },
+  { label: '10:30 - 12:30', start: '10:30', end: '12:30', tag: 'Mattina' },
+  { label: '11:00 - 13:00', start: '11:00', end: '13:00', tag: 'Mattina' },
+  { label: '11:30 - 13:30', start: '11:30', end: '13:30', tag: 'Mattina' },
+  { label: '13:30 - 15:30', start: '13:30', end: '15:30', tag: 'Pomeriggio' },
+  { label: '14:00 - 16:00', start: '14:00', end: '16:00', tag: 'Pomeriggio' },
+  { label: '14:30 - 16:30', start: '14:30', end: '16:30', tag: 'Pomeriggio' },
+  { label: '15:30 - 17:30', start: '15:30', end: '17:30', tag: 'Pomeriggio' },
+  { label: '16:00 - 18:00', start: '16:00', end: '18:00', tag: 'Pomeriggio' },
+  { label: '16:30 - 18:30', start: '16:30', end: '18:30', tag: 'Pomeriggio' },
+  { label: '17:00 - 19:00', start: '17:00', end: '19:00', tag: 'Sera' },
+  { label: '09:00 - 12:00', start: '09:00', end: '12:00', tag: '3 Ore' },
+  { label: '14:00 - 17:00', start: '14:00', end: '17:00', tag: '3 Ore' },
+  { label: '15:00 - 18:00', start: '15:00', end: '18:00', tag: '3 Ore' },
+];
