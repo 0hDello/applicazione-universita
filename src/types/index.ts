@@ -14,6 +14,19 @@ export interface TopicItem {
   completed: boolean;
 }
 
+export interface Lezione {
+  id: string;
+  number: number;
+  title: string;
+  date: string; // e.g. "2026-03-12"
+  time: string; // e.g. "09:00 - 11:00"
+  room: string; // e.g. "Aula 4B"
+  topicsCovered: string;
+  notes?: string;
+  status: 'svolta' | 'programmata' | 'da_recuperare';
+  hasNotes: boolean;
+}
+
 export interface Corso {
   id: string;
   code: string;
@@ -23,7 +36,7 @@ export interface Corso {
   color: string;
   icon: string;
   progress: number;
-  nextLecture: {
+  nextLecture?: {
     date: string;
     dayName: string;
     time: string;
@@ -33,6 +46,12 @@ export interface Corso {
   repetitionsDone: number;
   repetitionsTotal: number;
   topics: TopicItem[];
+  lezioni?: Lezione[];
+  semestre?: string;
+  aulaAbituale?: string;
+  orarioAbituale?: string;
+  linkAulaVirtuale?: string;
+  noteCorso?: string;
 }
 
 export interface Esame {
@@ -128,6 +147,8 @@ export interface UserSettings {
   academicYear: string;
   studyProgram: string;
   studyYear: string;
+  matricola?: string;
+  department?: string;
   theme: 'light' | 'dark' | 'system';
   accentColor: string;
   notifications: {

@@ -19,6 +19,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
+import {
+  UNIVERSITA_ITALIANE,
+  CORSI_DI_STUDIO_CATEGORIE,
+  ANNI_ACCADEMICI,
+  ANNI_DI_CORSO,
+} from '../../data/universityData';
+
 interface UpdateInfo {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev';
   message: string;
@@ -213,61 +220,112 @@ export const ImpostazioniView: React.FC = () => {
             <span>Dati universitari</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div>
-              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">Università</label>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Università o Ateneo
+              </label>
               <select
                 value={formData.university}
                 onChange={(e) => setFormData({ ...formData, university: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="Politecnico di Milano">Politecnico di Milano</option>
-                <option value="Università di Bologna">Università di Bologna</option>
-                <option value="Sapienza Università di Roma">Sapienza Università di Roma</option>
+                {!UNIVERSITA_ITALIANE.includes(formData.university) && formData.university && (
+                  <option value={formData.university}>{formData.university}</option>
+                )}
+                {UNIVERSITA_ITALIANE.map((uni) => (
+                  <option key={uni} value={uni}>
+                    {uni}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">Anno accademico</label>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Anno accademico
+              </label>
               <select
                 value={formData.academicYear}
                 onChange={(e) => setFormData({ ...formData, academicYear: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="2025/2026">2025/2026</option>
-                <option value="2026/2027">2026/2027</option>
+                {ANNI_ACCADEMICI.map((anno) => (
+                  <option key={anno} value={anno}>
+                    {anno}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">Corso di studi</label>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Corso di laurea / studi
+              </label>
               <select
                 value={formData.studyProgram}
                 onChange={(e) => setFormData({ ...formData, studyProgram: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="Ingegneria Informatica">Ingegneria Informatica</option>
-                <option value="Economia e Management">Economia e Management</option>
-                <option value="Medicina e Chirurgia">Medicina e Chirurgia</option>
+                {CORSI_DI_STUDIO_CATEGORIE.map((cat) => (
+                  <optgroup key={cat.category} label={cat.category}>
+                    {cat.courses.map((course) => (
+                      <option key={course} value={course}>
+                        {course}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+                <option value="Altro corso di studi">Altro corso di studi</option>
               </select>
             </div>
 
             <div>
-              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">Anno di corso</label>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Anno di corso
+              </label>
               <select
                 value={formData.studyYear}
                 onChange={(e) => setFormData({ ...formData, studyYear: e.target.value })}
-                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="1° anno">1° anno</option>
-                <option value="2° anno">2° anno</option>
-                <option value="3° anno">3° anno</option>
+                {ANNI_DI_CORSO.map((anno) => (
+                  <option key={anno} value={anno}>
+                    {anno}
+                  </option>
+                ))}
               </select>
+            </div>
+
+            <div>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Matricola (opzionale)
+              </label>
+              <input
+                type="text"
+                value={formData.matricola || ''}
+                onChange={(e) => setFormData({ ...formData, matricola: e.target.value })}
+                placeholder="Es. 1094821"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            <div>
+              <label className="font-semibold text-slate-600 dark:text-slate-400 block mb-1">
+                Dipartimento / Facoltà (opzionale)
+              </label>
+              <input
+                type="text"
+                value={formData.department || ''}
+                onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                placeholder="Es. Dipartimento di Ingegneria"
+                className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
             </div>
           </div>
 
           <p className="text-[10px] text-slate-400 font-medium">
-            ⓘ Queste informazioni vengono utilizzate per personalizzare la tua esperienza.
+            ⓘ Queste informazioni vengono utilizzate per personalizzare il tuo piano di studi.
           </p>
         </div>
 

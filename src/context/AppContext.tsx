@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type {
   NavView,
   Corso,
+  Lezione,
   Esame,
   Compito,
   EventoCalendario,
@@ -30,8 +31,15 @@ interface AppContextType {
   updateUserSettings: (settings: Partial<UserSettings>) => void;
   corsi: Corso[];
   addCorso: (corso: Omit<Corso, 'id'>) => void;
+  updateCorso: (courseId: string, updates: Partial<Corso>) => void;
+  deleteCorso: (courseId: string) => void;
   updateCorsoProgress: (courseId: string, progress: number) => void;
   toggleCourseTopic: (courseId: string, topicId: string) => void;
+  addTopicToCorso: (courseId: string, topicName: string) => void;
+  deleteTopicFromCorso: (courseId: string, topicId: string) => void;
+  addLezioneToCorso: (courseId: string, lezione: Omit<Lezione, 'id'>) => void;
+  updateLezione: (courseId: string, lezioneId: string, updates: Partial<Lezione>) => void;
+  deleteLezione: (courseId: string, lezioneId: string) => void;
   esami: Esame[];
   toggleExamTopic: (examId: string, topicId: string) => void;
   compiti: Compito[];
@@ -128,6 +136,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCorsi((prev) => [...prev, newCorso]);
   };
 
+  const updateCorso = (courseId: string, updates: Partial<Corso>) => {
+    setCorsi((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, ...updates } : c))
+    );
+  };
+
+  const deleteCorso = (courseId: string) => {
+    setCorsi((prev) => prev.filter((c) => c.id !== courseId));
+  };
+
   const updateCorsoProgress = (courseId: string, progress: number) => {
     setCorsi((prev) =>
       prev.map((c) => (c.id === courseId ? { ...c, progress } : c))
@@ -142,8 +160,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           t.id === topicId ? { ...t, completed: !t.completed } : t
         );
         const completedCount = updatedTopics.filter((t) => t.completed).length;
+        const newProgress = updatedTopics.length > 0 ? Math.round((completedCount / updatedTopics.length) * 100) : 0;
+        return { ...c, topics: updatedTopics, progress: newProgress };
+      })
+    );
+  };
+
+  const addTopicToCorso = (courseId: string, topicName: string) => {
+    if (!topicName.trim()) return;
+    setCorsi((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const newTopic = { id: `top_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`, name: topicName.trim(), completed: false };
+        const updatedTopics = [...c.topics, newTopic];
+        const completedCount = updatedTopics.filter((t) => t.completed).length;
         const newProgress = Math.round((completedCount / updatedTopics.length) * 100);
         return { ...c, topics: updatedTopics, progress: newProgress };
+      })
+    );
+  };
+
+  const deleteTopicFromCorso = (courseId: string, topicId: string) => {
+    setCorsi((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const updatedTopics = c.topics.filter((t) => t.id !== topicId);
+        const completedCount = updatedTopics.filter((t) => t.completed).length;
+        const newProgress = updatedTopics.length > 0 ? Math.round((completedCount / updatedTopics.length) * 100) : 0;
+        return { ...c, topics: updatedTopics, progress: newProgress };
+      })
+    );
+  };
+
+  const addLezioneToCorso = (courseId: string, lezione: Omit<Lezione, 'id'>) => {
+    setCorsi((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const currentLezioni = c.lezioni || [];
+        const newLezione: Lezione = {
+          ...lezione,
+          id: `lez_${Date.now()}`,
+          number: currentLezioni.length + 1,
+        };
+        const updatedLezioni = [...currentLezioni, newLezione];
+        const notesCount = updatedLezioni.filter((l) => l.hasNotes).length;
+        const notesPercent = Math.round((notesCount / updatedLezioni.length) * 100);
+        return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
+      })
+    );
+  };
+
+  const updateLezione = (courseId: string, lezioneId: string, updates: Partial<Lezione>) => {
+    setCorsi((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const currentLezioni = c.lezioni || [];
+        const updatedLezioni = currentLezioni.map((l) =>
+          l.id === lezioneId ? { ...l, ...updates } : l
+        );
+        const notesCount = updatedLezioni.filter((l) => l.hasNotes).length;
+        const notesPercent = updatedLezioni.length > 0 ? Math.round((notesCount / updatedLezioni.length) * 100) : 0;
+        return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
+      })
+    );
+  };
+
+  const deleteLezione = (courseId: string, lezioneId: string) => {
+    setCorsi((prev) =>
+      prev.map((c) => {
+        if (c.id !== courseId) return c;
+        const currentLezioni = c.lezioni || [];
+        const updatedLezioni = currentLezioni
+          .filter((l) => l.id !== lezioneId)
+          .map((l, idx) => ({ ...l, number: idx + 1 }));
+        const notesCount = updatedLezioni.filter((l) => l.hasNotes).length;
+        const notesPercent = updatedLezioni.length > 0 ? Math.round((notesCount / updatedLezioni.length) * 100) : 0;
+        return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
       })
     );
   };
@@ -217,8 +309,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateUserSettings,
         corsi,
         addCorso,
+        updateCorso,
+        deleteCorso,
         updateCorsoProgress,
         toggleCourseTopic,
+        addTopicToCorso,
+        deleteTopicFromCorso,
+        addLezioneToCorso,
+        updateLezione,
+        deleteLezione,
         esami,
         toggleExamTopic,
         compiti,
