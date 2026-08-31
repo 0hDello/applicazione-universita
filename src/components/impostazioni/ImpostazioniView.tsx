@@ -418,7 +418,7 @@ export const ImpostazioniView: React.FC = () => {
             {updateInfo.message && (
               <div
                 className={`p-3 rounded-2xl border text-xs flex flex-col gap-2 ${
-                  updateInfo.status === 'downloaded'
+                  updateInfo.status === 'downloaded' || updateInfo.status === 'not-available'
                     ? 'bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
                     : updateInfo.status === 'available' || updateInfo.status === 'downloading'
                     ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200'
@@ -428,7 +428,9 @@ export const ImpostazioniView: React.FC = () => {
                 }`}
               >
                 <div className="flex items-center gap-2">
-                  {updateInfo.status === 'downloaded' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                  {(updateInfo.status === 'downloaded' || updateInfo.status === 'not-available') && (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  )}
                   {updateInfo.status === 'downloading' && <DownloadCloud className="w-4 h-4 text-blue-600 shrink-0 animate-bounce" />}
                   {updateInfo.status === 'error' && <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />}
                   <span className="font-medium text-[11px] leading-snug">{updateInfo.message}</span>

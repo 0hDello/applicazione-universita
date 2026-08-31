@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"cross-env NODE_ENV=development npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder --win nsis"
+    "electron:build": "npm run build && electron-builder --win nsis",
+    "release:publish": "node scripts/publish-release.js"
   },
   "build": {
     "appId": "com.applicazione-universita.app",

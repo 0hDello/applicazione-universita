@@ -43,10 +43,18 @@ autoUpdater.on('update-not-available', () => {
 });
 
 autoUpdater.on('error', (err) => {
-  sendStatusToWindow('updater-status', {
-    status: 'error',
-    message: `Errore durante il controllo aggiornamenti: ${err.message}`,
-  });
+  const errMsg = err?.message || '';
+  if (errMsg.includes('No published versions') || errMsg.includes('404')) {
+    sendStatusToWindow('updater-status', {
+      status: 'not-available',
+      message: "L'applicazione è all'ultima versione disponibile.",
+    });
+  } else {
+    sendStatusToWindow('updater-status', {
+      status: 'error',
+      message: `Errore durante il controllo aggiornamenti: ${err.message}`,
+    });
+  }
 });
 
 autoUpdater.on('download-progress', (progressObj) => {
