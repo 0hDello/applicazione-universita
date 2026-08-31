@@ -99,11 +99,11 @@ async function main() {
     console.log(`Created release: ${release.html_url}`);
   }
 
-  // Upload release assets
+  // Upload release assets (ensuring hyphenated filenames match latest.yml)
   const releaseDir = path.resolve('release');
   const filesToUpload = [
     {
-      name: `Universita App Setup ${version}.exe`,
+      name: `Universita-App-Setup-${version}.exe`,
       path: path.join(releaseDir, `Universita App Setup ${version}.exe`),
       type: 'application/vnd.microsoft.portable-executable',
     },
@@ -113,7 +113,7 @@ async function main() {
       type: 'text/yaml',
     },
     {
-      name: `Universita App Setup ${version}.exe.blockmap`,
+      name: `Universita-App-Setup-${version}.exe.blockmap`,
       path: path.join(releaseDir, `Universita App Setup ${version}.exe.blockmap`),
       type: 'application/octet-stream',
     },
@@ -121,17 +121,26 @@ async function main() {
 
   for (const file of filesToUpload) {
     if (fs.existsSync(file.path)) {
-      // If already uploaded in assets, delete old asset first
-      const existingAsset = release.assets?.find(a => a.name === file.name);
-      if (existingAsset) {
-        console.log(`Deleting existing asset ${file.name}...`);
-        await fetch(existingAsset.url, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `token ${token}`,
-            'User-Agent': 'Universita-App-Publisher',
-          },
-        });
+      // Re-fetch assets list to ensure up-to-date IDs
+      const freshReleaseRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}`, {
+        headers: {
+          'Authorization': `token ${token}`,
+          'User-Agent': 'Universita-App-Publisher',
+        },
+      });
+      if (freshReleaseRes.ok) {
+        const freshRelease = await freshReleaseRes.json();
+        const existingAsset = freshRelease.assets?.find(a => a.name === file.name);
+        if (existingAsset) {
+          console.log(`Deleting existing asset ${file.name}...`);
+          await fetch(existingAsset.url, {
+            method: 'DELETE',
+            headers: {
+              'Authorization': `token ${token}`,
+              'User-Agent': 'Universita-App-Publisher',
+            },
+          });
+        }
       }
       await uploadAsset(release.upload_url, token, file.path, file.name, file.type);
     } else {
