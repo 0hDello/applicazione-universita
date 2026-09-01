@@ -19,8 +19,8 @@ export const CompitiView: React.FC = () => {
 
   // New task form state
   const [newTitle, setNewTitle] = useState('');
-  const [newCourse, setNewCourse] = useState('');
-  const [newDate, setNewDate] = useState('2026-05-31');
+  const [newCourse, setNewCourse] = useState(corsi[0]?.name || '');
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newPriority, setNewPriority] = useState<'Alta' | 'Media' | 'Bassa'>('Alta');
   const [newDesc, setNewDesc] = useState('');
 
@@ -29,7 +29,7 @@ export const CompitiView: React.FC = () => {
     if (!newTitle) return;
     addCompito({
       title: newTitle,
-      courseName: newCourse,
+      courseName: newCourse || (corsi[0]?.name || 'Compito'),
       dueDate: newDate,
       priority: newPriority,
       status: 'todo',

@@ -16,6 +16,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { TimeSlotPicker } from '../common/TimeSlotPicker';
+import { openGoogleMaps } from '../../utils/mapUtils';
 
 interface CorsoDetailModalProps {
   course: Corso;
@@ -34,6 +35,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
     deleteLezione,
     risorse,
     addRisorsa,
+    userSettings,
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<'lezioni' | 'programma' | 'risorse' | 'info'>('lezioni');
@@ -172,7 +174,19 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
               </div>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
                 Docente: <strong className="text-slate-700 dark:text-slate-200">{course.professor}</strong>
-                {course.aulaAbituale && ` • Aula: ${course.aulaAbituale}`}
+                {course.aulaAbituale && (
+                  <>
+                    {' • Aula: '}
+                    <button
+                      onClick={() => openGoogleMaps(course.aulaAbituale, userSettings.university)}
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline inline-flex items-center gap-0.5"
+                      title="Apri su Google Maps"
+                    >
+                      <span>{course.aulaAbituale}</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
                 {course.orarioAbituale && ` • Orario: ${course.orarioAbituale}`}
               </p>
             </div>
@@ -347,10 +361,15 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                                 </span>
                               )}
                               {lez.room && (
-                                <span className="flex items-center gap-1">
+                                <button
+                                  onClick={() => openGoogleMaps(lez.room, userSettings.university)}
+                                  className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                                  title="Apri su Google Maps"
+                                >
                                   <MapPin className="w-3 h-3 text-slate-400" />
-                                  {lez.room}
-                                </span>
+                                  <span>{lez.room}</span>
+                                  <ExternalLink className="w-2.5 h-2.5" />
+                                </button>
                               )}
                             </div>
                           </div>

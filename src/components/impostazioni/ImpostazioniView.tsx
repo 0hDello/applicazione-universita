@@ -125,7 +125,7 @@ export const ImpostazioniView: React.FC = () => {
     setTimeout(() => setSaveSuccess(false), 3000);
   };
 
-  const accentColors = ['#2563eb', '#7c3aed', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444'];
+  const accentColors = ['#2563eb', '#7c3aed', '#059669', '#ea580c', '#db2777', '#0284c7', '#d97706'];
 
   const exportBackupJSON = () => {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(localStorage));
@@ -422,16 +422,22 @@ export const ImpostazioniView: React.FC = () => {
 
           <div>
             <label className="font-semibold text-slate-600 dark:text-slate-400 block text-xs mb-2">
-              Colore principale
+              Colore tema (Accent Color)
             </label>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
               {accentColors.map((color) => (
                 <button
                   key={color}
                   type="button"
-                  onClick={() => setFormData({ ...formData, accentColor: color })}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-transform hover:scale-110"
+                  onClick={() => {
+                    setFormData((prev) => ({ ...prev, accentColor: color }));
+                    updateUserSettings({ accentColor: color });
+                  }}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-xs ${
+                    formData.accentColor === color ? 'ring-3 ring-offset-2 ring-slate-400 dark:ring-slate-500 scale-105' : ''
+                  }`}
                   style={{ backgroundColor: color }}
+                  title={color}
                 >
                   {formData.accentColor === color && <Check className="w-4 h-4 text-white" />}
                 </button>

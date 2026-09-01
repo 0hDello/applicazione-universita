@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { EventoCalendario, EventCategory } from '../../types';
 import { TimeSlotPicker } from '../common/TimeSlotPicker';
+import { openGoogleMaps } from '../../utils/mapUtils';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -16,26 +17,55 @@ import {
   FileText,
   CalendarDays,
   Sparkles,
+  Edit3,
+  Copy,
+  ExternalLink,
+  Repeat,
 } from 'lucide-react';
 
 export const CalendarioView: React.FC = () => {
-  const { eventi, addEvento, deleteEvento, esami, corsi } = useApp();
+  const {
+    eventi,
+    addEvento,
+    addEventoWithRecurrence,
+    updateEvento,
+    duplicateEvento,
+    moveEvento,
+    deleteEvento,
+    esami,
+    corsi,
+    userSettings,
+  } = useApp();
+
   const [activeTab, setActiveTab] = useState<'Mese' | 'Settimana' | 'Giorno'>('Mese');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedEvent, setSelectedEvent] = useState<EventoCalendario | null>(eventi[0] || null);
-  const [isAddingEvent, setIsAddingEvent] = useState(false);
 
   // New Event Form State
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<EventCategory>('Lezione');
-  const [newDate, setNewDate] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const [newDate, setNewDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newEndTime, setNewEndTime] = useState('11:00');
   const [newRoom, setNewRoom] = useState('');
   const [newCourse, setNewCourse] = useState(corsi[0]?.name || '');
   const [newNotes, setNewNotes] = useState('');
+  const [newRecurrenceWeeks, setNewRecurrenceWeeks] = useState<number>(1);
+
+  // Edit Event Form State
+  const [editingEvent, setEditingEvent] = useState<EventoCalendario | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editCategory, setEditCategory] = useState<EventCategory>('Lezione');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('09:00');
+  const [editEndTime, setEditEndTime] = useState('11:00');
+  const [editRoom, setEditRoom] = useState('');
+  const [editCourse, setEditCourse] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+
+  // Drag & Drop State
+  const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
 
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
@@ -128,20 +158,63 @@ export const CalendarioView: React.FC = () => {
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
-    addEvento({
-      title: newTitle,
+
+    const eventPayload = {
+      title: newTitle.trim(),
       category: newCategory,
       date: newDate,
       time: `${newStartTime} - ${newEndTime}`,
-      room: newRoom || 'Aula da definire',
+      room: newRoom.trim() || 'Aula da definire',
       courseName: newCourse || 'Corso',
-      notes: newNotes,
+      notes: newNotes.trim(),
       reminder: '15 minuti prima',
-    });
+    };
+
+    if (newRecurrenceWeeks > 1) {
+      addEventoWithRecurrence(eventPayload, newRecurrenceWeeks);
+    } else {
+      addEvento(eventPayload);
+    }
+
     setIsAddingEvent(false);
     setNewTitle('');
     setNewNotes('');
     setNewRoom('');
+    setNewRecurrenceWeeks(1);
+  };
+
+  const openEditModal = (ev: EventoCalendario) => {
+    setEditingEvent(ev);
+    setEditTitle(ev.title);
+    setEditCategory(ev.category);
+    setEditDate(ev.date);
+    const parts = ev.time.split('-').map((s) => s.trim());
+    setEditStartTime(parts[0] || '09:00');
+    setEditEndTime(parts[1] || '11:00');
+    setEditRoom(ev.room || '');
+    setEditCourse(ev.courseName || '');
+    setEditNotes(ev.notes || '');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEvent || !editTitle) return;
+
+    const updatedData: Partial<EventoCalendario> = {
+      title: editTitle.trim(),
+      category: editCategory,
+      date: editDate,
+      time: `${editStartTime} - ${editEndTime}`,
+      room: editRoom.trim() || 'Aula da definire',
+      courseName: editCourse,
+      notes: editNotes.trim(),
+    };
+
+    updateEvento(editingEvent.id, updatedData);
+    if (selectedEvent && selectedEvent.id === editingEvent.id) {
+      setSelectedEvent({ ...selectedEvent, ...updatedData } as EventoCalendario);
+    }
+    setEditingEvent(null);
   };
 
   const openAddForDate = (dateStr: string) => {
@@ -216,8 +289,8 @@ export const CalendarioView: React.FC = () => {
                   {activeTab === 'Giorno' && `${currentDay} ${monthNames[currentMonth]} ${currentYear}`}
                 </h3>
                 <p className="text-[11px] font-semibold text-slate-400">
-                  {activeTab === 'Mese' && 'Vista Mensile'}
-                  {activeTab === 'Settimana' && 'Orario Settimanale'}
+                  {activeTab === 'Mese' && 'Vista Mensile (Trascina eventi per spostarli)'}
+                  {activeTab === 'Settimana' && 'Orario Settimanale Interattivo'}
                   {activeTab === 'Giorno' && weekDaysFull[(currentDate.getDay() + 6) % 7]}
                 </p>
               </div>
@@ -318,10 +391,17 @@ export const CalendarioView: React.FC = () => {
                 return (
                   <div
                     key={day}
-                    onClick={() => {
-                      setCurrentDate(new Date(currentYear, currentMonth, day));
-                    }}
+                    onClick={() => setCurrentDate(new Date(currentYear, currentMonth, day))}
                     onDoubleClick={() => openAddForDate(cellDateStr)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const evId = e.dataTransfer.getData('text/plain') || draggedEventId;
+                      if (evId) {
+                        moveEvento(evId, cellDateStr);
+                        setDraggedEventId(null);
+                      }
+                    }}
                     className={`bg-white dark:bg-slate-900 p-2.5 min-h-[115px] flex flex-col gap-1.5 transition-colors hover:bg-blue-50/30 dark:hover:bg-slate-800/50 cursor-pointer group ${
                       isToday ? 'bg-blue-50/40 dark:bg-blue-950/20 ring-1 ring-inset ring-blue-500/30' : ''
                     }`}
@@ -348,16 +428,21 @@ export const CalendarioView: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Day Events Pills */}
+                    {/* Day Events Pills with Drag & Drop */}
                     <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
                       {dayEvents.map((ev) => (
                         <button
                           key={ev.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('text/plain', ev.id);
+                            setDraggedEventId(ev.id);
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             setSelectedEvent(ev);
                           }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left truncate border transition-transform hover:scale-98 shadow-2xs ${getCategoryBadgeClass(
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left truncate border transition-transform hover:scale-98 shadow-2xs cursor-grab active:cursor-grabbing ${getCategoryBadgeClass(
                             ev.category
                           )}`}
                         >
@@ -404,7 +489,7 @@ export const CalendarioView: React.FC = () => {
                   <span>Studio</span>
                 </div>
               </div>
-              <span className="text-[11px] text-slate-400">Doppio click su un giorno per aggiungere un evento</span>
+              <span className="text-[11px] text-slate-400">Trascina gli eventi per spostarli • Doppio click per aggiungere</span>
             </div>
           </div>
         )}
@@ -446,10 +531,12 @@ export const CalendarioView: React.FC = () => {
               })}
             </div>
 
-            {/* Week Timetable Matrix */}
+            {/* Week Timetable Matrix with Drag & Drop */}
             <div className="overflow-y-auto max-h-[580px] divide-y divide-slate-100 dark:divide-slate-800/70">
               {hoursList.map((hour) => {
                 const hourNum = parseInt(hour.split(':')[0]);
+                const nextHourStr = `${String(hourNum + 2).padStart(2, '0')}:00`;
+
                 return (
                   <div key={hour} className="grid grid-cols-8 min-h-[64px] auto-rows-fr">
                     {/* Hour Column */}
@@ -469,16 +556,30 @@ export const CalendarioView: React.FC = () => {
                         <div
                           key={dateStr}
                           onClick={() => openAddForDate(dateStr)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const evId = e.dataTransfer.getData('text/plain') || draggedEventId;
+                            if (evId) {
+                              moveEvento(evId, dateStr, `${hour} - ${nextHourStr}`);
+                              setDraggedEventId(null);
+                            }
+                          }}
                           className="p-1 border-r border-slate-100 dark:border-slate-800/50 hover:bg-blue-50/20 dark:hover:bg-slate-800/30 transition-colors flex flex-col gap-1 cursor-pointer"
                         >
                           {dayEvents.map((ev) => (
                             <button
                               key={ev.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.dataTransfer.setData('text/plain', ev.id);
+                                setDraggedEventId(ev.id);
+                              }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedEvent(ev);
                               }}
-                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 ${getCategoryBadgeClass(
+                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 cursor-grab active:cursor-grabbing ${getCategoryBadgeClass(
                                 ev.category
                               )}`}
                             >
@@ -566,9 +667,15 @@ export const CalendarioView: React.FC = () => {
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getCategoryBadgeClass(ev.category)}`}>
                             {ev.category}
                           </span>
+                          {ev.recurrence && (
+                            <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
+                              <Repeat className="w-3 h-3" />
+                              <span>{ev.recurrence}</span>
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium flex-wrap">
                           {ev.courseName && (
                             <span className="flex items-center gap-1">
                               <BookOpen className="w-3.5 h-3.5 text-slate-400" />
@@ -576,10 +683,18 @@ export const CalendarioView: React.FC = () => {
                             </span>
                           )}
                           {ev.room && (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openGoogleMaps(ev.room, userSettings.university);
+                              }}
+                              className="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-semibold"
+                              title="Apri indicazioni su Google Maps"
+                            >
+                              <MapPin className="w-3.5 h-3.5" />
                               <span>{ev.room}</span>
-                            </span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
                           )}
                         </div>
 
@@ -591,16 +706,28 @@ export const CalendarioView: React.FC = () => {
                       </div>
                     </div>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        deleteEvento(ev.id);
-                      }}
-                      className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                      title="Elimina"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openEditModal(ev);
+                        }}
+                        className="p-2 rounded-xl text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                        title="Modifica evento"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteEvento(ev.id);
+                        }}
+                        className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                        title="Elimina"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -624,8 +751,30 @@ export const CalendarioView: React.FC = () => {
                 >
                   {selectedEvent.category}
                 </span>
+                {selectedEvent.recurrence && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
+                    <Repeat className="w-3 h-3" />
+                    <span>{selectedEvent.recurrence}</span>
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => openEditModal(selectedEvent)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 transition-colors"
+                  title="Modifica evento"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Modifica</span>
+                </button>
+                <button
+                  onClick={() => duplicateEvento(selectedEvent.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 transition-colors"
+                  title="Duplica evento"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplica</span>
+                </button>
                 <button
                   onClick={() => {
                     deleteEvento(selectedEvent.id);
@@ -661,10 +810,19 @@ export const CalendarioView: React.FC = () => {
                 <div className="flex items-start gap-3 text-xs">
                   <MapPin className="w-4 h-4 text-blue-600 mt-0.5" />
                   <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Aula</p>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">
-                      {selectedEvent.room || 'Non specificata'}
-                    </p>
+                    <p className="font-bold text-slate-900 dark:text-white">Aula / Sede</p>
+                    {selectedEvent.room ? (
+                      <button
+                        onClick={() => openGoogleMaps(selectedEvent.room, userSettings.university)}
+                        className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1"
+                        title="Apri su Google Maps"
+                      >
+                        <span>{selectedEvent.room}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    ) : (
+                      <p className="text-slate-400">Non specificata</p>
+                    )}
                   </div>
                 </div>
 
@@ -705,15 +863,6 @@ export const CalendarioView: React.FC = () => {
                   {selectedEvent.notes || 'Nessuna nota aggiuntiva specificata per questo evento.'}
                 </div>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-3 pt-2">
-              <button
-                onClick={() => setSelectedEvent(null)}
-                className="px-5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-              >
-                Chiudi
-              </button>
             </div>
           </div>
         )}
@@ -872,7 +1021,7 @@ export const CalendarioView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data Inizio</label>
                   <input
                     type="date"
                     required
@@ -912,7 +1061,7 @@ export const CalendarioView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
                   <input
                     type="text"
                     value={newRoom}
@@ -921,6 +1070,25 @@ export const CalendarioView: React.FC = () => {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
+              </div>
+
+              {/* Recurrence Selector */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
+                  <Repeat className="w-3.5 h-3.5 text-purple-600" />
+                  <span>Ricorrenza settimanale (Crea orario automatico)</span>
+                </label>
+                <select
+                  value={newRecurrenceWeeks}
+                  onChange={(e) => setNewRecurrenceWeeks(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                >
+                  <option value={1}>Nessuna (Singolo evento)</option>
+                  <option value={4}>Ripeti per 4 settimane</option>
+                  <option value={8}>Ripeti per 8 settimane (2 mesi)</option>
+                  <option value={12}>Ripeti per 12 settimane (3 mesi)</option>
+                  <option value={16}>Intero Semestre (16 settimane)</option>
+                </select>
               </div>
 
               <div>
@@ -946,7 +1114,139 @@ export const CalendarioView: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
                 >
-                  Salva nel Calendario
+                  {newRecurrenceWeeks > 1 ? `Salva ${newRecurrenceWeeks} Eventi Ricorrenti` : 'Salva nel Calendario'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Event Modal Overlay */}
+      {editingEvent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
+                  <Edit3 className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Modifica Evento</h3>
+              </div>
+              <button
+                onClick={() => setEditingEvent(null)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEdit} className="flex flex-col gap-3 text-xs">
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Titolo evento *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Categoria</label>
+                  <select
+                    value={editCategory}
+                    onChange={(e) => setEditCategory(e.target.value as EventCategory)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                  >
+                    <option value="Lezione">📚 Lezione</option>
+                    <option value="Esame">🎯 Esame</option>
+                    <option value="Scadenza">⏰ Scadenza</option>
+                    <option value="Studio">🧠 Sessione Studio</option>
+                    <option value="Altro">📌 Altro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* Time Slot Picker for Edit */}
+              <TimeSlotPicker
+                label="Orario Evento"
+                startTime={editStartTime}
+                endTime={editEndTime}
+                onChange={(s, e) => {
+                  setEditStartTime(s);
+                  setEditEndTime(e);
+                }}
+              />
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
+                  <select
+                    value={editCourse}
+                    onChange={(e) => setEditCourse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                  >
+                    {corsi.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="Altro">Altro / Nessuno</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
+                  <input
+                    type="text"
+                    value={editRoom}
+                    onChange={(e) => setEditRoom(e.target.value)}
+                    placeholder="Es. Aula Magna / 4B"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note o compiti</label>
+                <textarea
+                  rows={2}
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Dettagli ed argomenti..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingEvent(null)}
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                >
+                  Salva Modifiche
                 </button>
               </div>
             </form>

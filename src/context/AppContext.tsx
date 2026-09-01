@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type {
   NavView,
   Corso,
@@ -11,6 +11,7 @@ import type {
   WeeklyGoal,
   Habit,
   UserSettings,
+  AppNotification,
 } from '../types';
 import {
   initialUserSettings,
@@ -37,27 +38,46 @@ interface AppContextType {
   toggleCourseTopic: (courseId: string, topicId: string) => void;
   addTopicToCorso: (courseId: string, topicName: string) => void;
   deleteTopicFromCorso: (courseId: string, topicId: string) => void;
-  addLezioneToCorso: (courseId: string, lezione: Omit<Lezione, 'id'>) => void;
+  addLezioneToCorso: (courseId: string, lezione: Omit<Lezione, 'id'>, syncWithCalendar?: boolean) => void;
   updateLezione: (courseId: string, lezioneId: string, updates: Partial<Lezione>) => void;
   deleteLezione: (courseId: string, lezioneId: string) => void;
   esami: Esame[];
-  addEsame: (esame: Omit<Esame, 'id'>) => void;
+  addEsame: (esame: Omit<Esame, 'id'>, syncWithCalendar?: boolean) => void;
+  updateEsame: (examId: string, updates: Partial<Esame>) => void;
   deleteEsame: (examId: string) => void;
   toggleExamTopic: (examId: string, topicId: string) => void;
   compiti: Compito[];
   updateTaskStatus: (taskId: string, status: Compito['status']) => void;
   addCompito: (task: Omit<Compito, 'id'>) => void;
+  updateCompito: (taskId: string, updates: Partial<Compito>) => void;
   deleteCompito: (taskId: string) => void;
   eventi: EventoCalendario[];
   addEvento: (event: Omit<EventoCalendario, 'id'>) => void;
+  addEventoWithRecurrence: (event: Omit<EventoCalendario, 'id'>, weeksCount: number) => void;
+  updateEvento: (eventId: string, updates: Partial<EventoCalendario>) => void;
+  duplicateEvento: (eventId: string, targetDate?: string) => void;
+  moveEvento: (eventId: string, newDate: string, newTime?: string) => void;
   deleteEvento: (eventId: string) => void;
   risorse: Risorsa[];
   toggleFavoriteResource: (resourceId: string) => void;
   addRisorsa: (resource: Omit<Risorsa, 'id'>) => void;
   deleteRisorsa: (resourceId: string) => void;
   semesterGoals: SemesterGoal[];
+  addSemesterGoal: (goal: Omit<SemesterGoal, 'id'>) => void;
+  updateSemesterGoal: (goalId: string, updates: Partial<SemesterGoal>) => void;
+  deleteSemesterGoal: (goalId: string) => void;
   weeklyGoals: WeeklyGoal[];
+  addWeeklyGoal: (goal: Omit<WeeklyGoal, 'id'>) => void;
+  toggleWeeklyGoal: (goalId: string) => void;
+  toggleWeeklyGoalDay: (goalId: string, dayIndex: number) => void;
+  deleteWeeklyGoal: (goalId: string) => void;
   habits: Habit[];
+  addHabit: (habit: Omit<Habit, 'id'>) => void;
+  toggleHabitDay: (habitId: string, dayIndex: number) => void;
+  deleteHabit: (habitId: string) => void;
+  notifications: AppNotification[];
+  markAllNotificationsAsRead: () => void;
+  markNotificationAsRead: (id: string) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
 }
@@ -98,13 +118,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [compiti, setCompiti] = useState<Compito[]>(() => loadStorage('compiti', initialCompiti));
   const [eventi, setEventi] = useState<EventoCalendario[]>(() => loadStorage('eventi', initialEventi));
   const [risorse, setRisorse] = useState<Risorsa[]>(() => loadStorage('risorse', initialRisorse));
-  const [semesterGoals] = useState<SemesterGoal[]>(() =>
+  const [semesterGoals, setSemesterGoals] = useState<SemesterGoal[]>(() =>
     loadStorage('semesterGoals', initialSemesterGoals)
   );
-  const [weeklyGoals] = useState<WeeklyGoal[]>(() =>
+  const [weeklyGoals, setWeeklyGoals] = useState<WeeklyGoal[]>(() =>
     loadStorage('weeklyGoals', initialWeeklyGoals)
   );
-  const [habits] = useState<Habit[]>(() => loadStorage('habits', initialHabits));
+  const [habits, setHabits] = useState<Habit[]>(() => loadStorage('habits', initialHabits));
 
   // Sync effect to localStorage
   useEffect(() => saveStorage('userSettings', userSettings), [userSettings]);
@@ -145,6 +165,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return () => mediaQuery.removeEventListener('change', listener);
     }
   }, [userSettings.theme]);
+
+  // Apply accent color to CSS variables
+  useEffect(() => {
+    if (userSettings.accentColor) {
+      document.documentElement.style.setProperty('--color-primary', userSettings.accentColor);
+    }
+  }, [userSettings.accentColor]);
+
+  // Notifications State & Generator
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() =>
+    loadStorage('readNotificationIds', [])
+  );
+  useEffect(() => saveStorage('readNotificationIds', readNotificationIds), [readNotificationIds]);
+
+  const notifications: AppNotification[] = useMemo(() => {
+    const list: AppNotification[] = [];
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+
+    // 1. Upcoming exams in next 7 days
+    esami.forEach((e) => {
+      if (e.status === 'upcoming' && e.daysRemaining <= 7) {
+        list.push({
+          id: `notif_exam_${e.id}`,
+          title: `Appello Esame: ${e.courseName}`,
+          message: e.daysRemaining === 0 ? 'Il tuo esame è OGGI!' : `Mancano ${e.daysRemaining} giorni all'esame (${e.date}).`,
+          time: e.daysRemaining === 0 ? 'Oggi' : `${e.daysRemaining} gg`,
+          type: 'exam',
+          read: readNotificationIds.includes(`notif_exam_${e.id}`),
+          linkView: 'esami',
+        });
+      }
+    });
+
+    // 2. Tasks due soon (within 2 days or overdue)
+    compiti.forEach((t) => {
+      if (t.status !== 'completed' && t.dueDate) {
+        const diffDays = Math.ceil((new Date(t.dueDate).getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (diffDays <= 2) {
+          list.push({
+            id: `notif_task_${t.id}`,
+            title: `Scadenza Compito: ${t.title}`,
+            message: diffDays < 0 ? `Scaduto il ${t.dueDate}` : diffDays === 0 ? 'Scade OGGI!' : `Scade domani (${t.dueDate}).`,
+            time: diffDays <= 0 ? 'Urgente' : 'In scadenza',
+            type: 'task',
+            read: readNotificationIds.includes(`notif_task_${t.id}`),
+            linkView: 'compiti',
+          });
+        }
+      }
+    });
+
+    // 3. Lessons today
+    eventi.forEach((ev) => {
+      if (ev.date === todayStr && ev.category === 'Lezione') {
+        list.push({
+          id: `notif_lez_${ev.id}`,
+          title: `Lezione di oggi: ${ev.title}`,
+          message: `Orario ${ev.time} • ${ev.room || 'Aula da definire'}`,
+          time: ev.time.split('-')[0]?.trim() || 'Oggi',
+          type: 'lecture',
+          read: readNotificationIds.includes(`notif_lez_${ev.id}`),
+          linkView: 'calendario',
+        });
+      }
+    });
+
+    // 4. Welcome / system notification
+    list.push({
+      id: 'notif_sys_welcome',
+      title: 'Benvenuto su Università App!',
+      message: 'Il tuo piano di studi, esami e calendario sono sincronizzati.',
+      time: 'Adesso',
+      type: 'info',
+      read: readNotificationIds.includes('notif_sys_welcome'),
+      linkView: 'impostazioni',
+    });
+
+    return list;
+  }, [esami, compiti, eventi, readNotificationIds]);
+
+  const markAllNotificationsAsRead = () => {
+    setReadNotificationIds(notifications.map((n) => n.id));
+  };
+
+  const markNotificationAsRead = (id: string) => {
+    setReadNotificationIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+  };
 
   const updateUserSettings = (newSettings: Partial<UserSettings>) => {
     setUserSettings((prev) => ({ ...prev, ...newSettings }));
@@ -282,9 +390,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addEsame = (esame: Omit<Esame, 'id'>, syncWithCalendar = true) => {
+    const newExamId = `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newExam: Esame = {
       ...esame,
-      id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: newExamId,
     };
     setEsami((prev) => [newExam, ...prev]);
 
@@ -299,13 +408,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         courseName: esame.courseName,
         notes: `Docente: ${esame.professor}`,
         reminder: '1 giorno prima',
+        relatedExamId: newExamId,
       };
       setEventi((prev) => [...prev, newEvent]);
     }
   };
 
+  const updateEsame = (examId: string, updates: Partial<Esame>) => {
+    setEsami((prev) =>
+      prev.map((e) => {
+        if (e.id !== examId) return e;
+        const updated = { ...e, ...updates };
+        if (updates.date) {
+          updated.daysRemaining = Math.max(0, Math.ceil((new Date(updates.date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+        }
+        return updated;
+      })
+    );
+
+    // Sync with calendar event
+    if (updates.date || updates.time || updates.room || updates.courseName) {
+      setEventi((prev) =>
+        prev.map((ev) => {
+          if (ev.relatedExamId === examId || (ev.category === 'Esame' && ev.title.includes(examId))) {
+            return {
+              ...ev,
+              date: updates.date || ev.date,
+              time: updates.time || ev.time,
+              room: updates.room !== undefined ? updates.room : ev.room,
+              title: updates.courseName ? `Esame: ${updates.courseName}` : ev.title,
+            };
+          }
+          return ev;
+        })
+      );
+    }
+  };
+
   const deleteEsame = (examId: string) => {
     setEsami((prev) => prev.filter((e) => e.id !== examId));
+    setEventi((prev) => prev.filter((ev) => ev.relatedExamId !== examId));
   };
 
   const toggleExamTopic = (examId: string, topicId: string) => {
@@ -327,15 +469,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addCompito = (task: Omit<Compito, 'id'>) => {
+    const newTaskId = `task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const calEventId = `ev_task_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
     const newTask: Compito = {
       ...task,
-      id: `task_${Date.now()}`,
+      id: newTaskId,
+      calendarEventId: calEventId,
     };
     setCompiti((prev) => [newTask, ...prev]);
+
+    // Cross-sync: automatically create a calendar event of category Scadenza
+    if (task.dueDate) {
+      const newEvent: EventoCalendario = {
+        id: calEventId,
+        title: `Consegna: ${task.title}`,
+        category: 'Scadenza',
+        date: task.dueDate,
+        time: '23:59',
+        room: task.courseName || 'Online',
+        courseName: task.courseName || 'Compito',
+        notes: task.description || `Priorità: ${task.priority}`,
+        reminder: '1 giorno prima',
+        relatedTaskId: newTaskId,
+      };
+      setEventi((prev) => [...prev, newEvent]);
+    }
+  };
+
+  const updateCompito = (taskId: string, updates: Partial<Compito>) => {
+    let updatedCalId = '';
+    setCompiti((prev) =>
+      prev.map((t) => {
+        if (t.id !== taskId) return t;
+        updatedCalId = t.calendarEventId || '';
+        return { ...t, ...updates };
+      })
+    );
+
+    // Sync with calendar event
+    setEventi((prev) =>
+      prev.map((ev) => {
+        if (ev.relatedTaskId === taskId || (updatedCalId && ev.id === updatedCalId)) {
+          return {
+            ...ev,
+            title: updates.title ? `Consegna: ${updates.title}` : ev.title,
+            date: updates.dueDate || ev.date,
+            courseName: updates.courseName || ev.courseName,
+            notes: updates.description !== undefined ? updates.description : ev.notes,
+          };
+        }
+        return ev;
+      })
+    );
   };
 
   const deleteCompito = (taskId: string) => {
     setCompiti((prev) => prev.filter((t) => t.id !== taskId));
+    setEventi((prev) => prev.filter((ev) => ev.relatedTaskId !== taskId));
   };
 
   const addEvento = (event: Omit<EventoCalendario, 'id'>) => {
@@ -403,6 +593,77 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const addEventoWithRecurrence = (event: Omit<EventoCalendario, 'id'>, weeksCount: number) => {
+    const baseDate = new Date(event.date);
+    const newEvents: EventoCalendario[] = [];
+
+    for (let i = 0; i < weeksCount; i++) {
+      const d = new Date(baseDate);
+      d.setDate(d.getDate() + i * 7);
+      const dateStr = d.toISOString().split('T')[0];
+      newEvents.push({
+        ...event,
+        id: `ev_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+        date: dateStr,
+        recurrence: weeksCount > 1 ? `Settimanale (${i + 1}/${weeksCount})` : undefined,
+      });
+    }
+
+    setEventi((prev) => [...prev, ...newEvents]);
+
+    // Also sync lectures into the course
+    if (event.category === 'Lezione') {
+      const matchedCourse = corsi.find(
+        (c) =>
+          (event.courseName && c.name.toLowerCase() === event.courseName.toLowerCase()) ||
+          (event.title && event.title.toLowerCase().includes(c.name.toLowerCase()))
+      );
+      if (matchedCourse) {
+        newEvents.forEach((ev) => {
+          addLezioneToCorso(
+            matchedCourse.id,
+            {
+              number: (matchedCourse.lezioni || []).length + 1,
+              title: ev.title,
+              date: ev.date,
+              time: ev.time,
+              room: ev.room || '',
+              topicsCovered: ev.title,
+              notes: ev.notes || '',
+              status: 'programmata',
+              hasNotes: false,
+            },
+            false
+          );
+        });
+      }
+    }
+  };
+
+  const updateEvento = (eventId: string, updates: Partial<EventoCalendario>) => {
+    setEventi((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, ...updates } : e))
+    );
+  };
+
+  const duplicateEvento = (eventId: string, targetDate?: string) => {
+    const source = eventi.find((e) => e.id === eventId);
+    if (!source) return;
+    const duplicated: EventoCalendario = {
+      ...source,
+      id: `ev_dup_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      title: `${source.title} (Copia)`,
+      date: targetDate || source.date,
+    };
+    setEventi((prev) => [...prev, duplicated]);
+  };
+
+  const moveEvento = (eventId: string, newDate: string, newTime?: string) => {
+    setEventi((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, date: newDate, time: newTime || e.time } : e))
+    );
+  };
+
   const deleteEvento = (eventId: string) => {
     setEventi((prev) => prev.filter((e) => e.id !== eventId));
   };
@@ -425,6 +686,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setRisorse((prev) => prev.filter((r) => r.id !== resourceId));
   };
 
+  // Goals & Habits CRUD
+  const addSemesterGoal = (goal: Omit<SemesterGoal, 'id'>) => {
+    const newGoal: SemesterGoal = {
+      ...goal,
+      id: `sem_goal_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setSemesterGoals((prev) => [...prev, newGoal]);
+  };
+
+  const updateSemesterGoal = (goalId: string, updates: Partial<SemesterGoal>) => {
+    setSemesterGoals((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const updated = { ...g, ...updates };
+        if (updated.total > 0 && updated.current !== undefined) {
+          updated.progress = Math.min(100, Math.round((updated.current / updated.total) * 100));
+        }
+        return updated;
+      })
+    );
+  };
+
+  const deleteSemesterGoal = (goalId: string) => {
+    setSemesterGoals((prev) => prev.filter((g) => g.id !== goalId));
+  };
+
+  const addWeeklyGoal = (goal: Omit<WeeklyGoal, 'id'>) => {
+    const newGoal: WeeklyGoal = {
+      ...goal,
+      id: `w_goal_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      days: goal.days || [false, false, false, false, false, false, false],
+    };
+    setWeeklyGoals((prev) => [...prev, newGoal]);
+  };
+
+  const toggleWeeklyGoal = (goalId: string) => {
+    setWeeklyGoals((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const isComplete = g.completedSessions >= g.totalSessions;
+        const newCount = isComplete ? 0 : g.totalSessions;
+        return {
+          ...g,
+          completedSessions: newCount,
+          days: isComplete ? [false, false, false, false, false, false, false] : [true, true, true, true, true, true, true],
+        };
+      })
+    );
+  };
+
+  const toggleWeeklyGoalDay = (goalId: string, dayIndex: number) => {
+    setWeeklyGoals((prev) =>
+      prev.map((g) => {
+        if (g.id !== goalId) return g;
+        const newDays = [...g.days];
+        newDays[dayIndex] = !newDays[dayIndex];
+        const completedCount = newDays.filter(Boolean).length;
+        return { ...g, days: newDays, completedSessions: completedCount };
+      })
+    );
+  };
+
+  const deleteWeeklyGoal = (goalId: string) => {
+    setWeeklyGoals((prev) => prev.filter((g) => g.id !== goalId));
+  };
+
+  const addHabit = (habit: Omit<Habit, 'id'>) => {
+    const newHabit: Habit = {
+      ...habit,
+      id: `habit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      activeDays: habit.activeDays || [false, false, false, false, false, false, false],
+    };
+    setHabits((prev) => [...prev, newHabit]);
+  };
+
+  const toggleHabitDay = (habitId: string, dayIndex: number) => {
+    setHabits((prev) =>
+      prev.map((h) => {
+        if (h.id !== habitId) return h;
+        const newDays = [...h.activeDays];
+        newDays[dayIndex] = !newDays[dayIndex];
+        const activeCount = newDays.filter(Boolean).length;
+        return { ...h, activeDays: newDays, streakDays: activeCount };
+      })
+    );
+  };
+
+  const deleteHabit = (habitId: string) => {
+    setHabits((prev) => prev.filter((h) => h.id !== habitId));
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -445,22 +797,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteLezione,
         esami,
         addEsame,
+        updateEsame,
         deleteEsame,
         toggleExamTopic,
         compiti,
         updateTaskStatus,
         addCompito,
+        updateCompito,
         deleteCompito,
         eventi,
         addEvento,
+        addEventoWithRecurrence,
+        updateEvento,
+        duplicateEvento,
+        moveEvento,
         deleteEvento,
         risorse,
         toggleFavoriteResource,
         addRisorsa,
         deleteRisorsa,
         semesterGoals,
+        addSemesterGoal,
+        updateSemesterGoal,
+        deleteSemesterGoal,
         weeklyGoals,
+        addWeeklyGoal,
+        toggleWeeklyGoal,
+        toggleWeeklyGoalDay,
+        deleteWeeklyGoal,
         habits,
+        addHabit,
+        toggleHabitDay,
+        deleteHabit,
+        notifications,
+        markAllNotificationsAsRead,
+        markNotificationAsRead,
         searchQuery,
         setSearchQuery,
       }}

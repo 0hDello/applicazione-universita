@@ -54,6 +54,13 @@ export interface Corso {
   noteCorso?: string;
 }
 
+export type RegistrationStatus =
+  | 'In attesa'
+  | 'Iscritto'
+  | 'Confermata'
+  | 'Non iscritto'
+  | 'Verbalizzato';
+
 export interface Esame {
   id: string;
   courseId: string;
@@ -62,7 +69,7 @@ export interface Esame {
   date: string; // e.g. "2026-05-31"
   time: string; // e.g. "09:00"
   room: string;
-  registrationStatus: 'Confermata' | 'In attesa';
+  registrationStatus: RegistrationStatus;
   daysRemaining: number;
   progress: number;
   notesPercentage: number;
@@ -84,6 +91,7 @@ export interface Compito {
   status: 'todo' | 'in_progress' | 'completed';
   description?: string;
   progress?: number;
+  calendarEventId?: string;
 }
 
 export type EventCategory = 'Lezione' | 'Esame' | 'Scadenza' | 'Studio' | 'Altro';
@@ -98,6 +106,10 @@ export interface EventoCalendario {
   courseName?: string;
   notes?: string;
   reminder?: string;
+  recurrence?: string;
+  relatedTaskId?: string;
+  relatedCourseId?: string;
+  relatedExamId?: string;
 }
 
 export type ResourceType = 'PDF' | 'Slide' | 'Link' | 'Video' | 'Registrazione' | 'Formulario' | 'Esercizio';
@@ -121,6 +133,7 @@ export interface SemesterGoal {
   current: number;
   total: number;
   priority: 'Alta' | 'Media' | 'Bassa';
+  category?: string;
 }
 
 export interface WeeklyGoal {
@@ -136,6 +149,16 @@ export interface Habit {
   title: string;
   streakDays: number;
   activeDays: boolean[];
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: 'exam' | 'task' | 'lecture' | 'update' | 'info';
+  read: boolean;
+  linkView?: NavView;
 }
 
 export interface UserSettings {
