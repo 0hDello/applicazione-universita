@@ -276,46 +276,46 @@ export const EsamiView: React.FC = () => {
                   </div>
 
                   {/* Details Bar: Date, Time, Room, Registration Status Selector */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 text-xs border border-slate-100 dark:border-slate-800">
-                    <div className="flex items-center gap-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 p-3.5 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 text-xs border border-slate-100 dark:border-slate-800 min-w-0">
+                    <div className="flex items-center gap-2 min-w-0">
                       <CalendarIcon className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <span className="text-[10px] text-slate-400 block font-semibold">Data Appello</span>
-                        <span className="font-bold text-slate-900 dark:text-white">{exam.date}</span>
+                        <span className="font-bold text-slate-900 dark:text-white truncate block">{exam.date}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <Clock className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
+                      <div className="min-w-0 flex-1">
                         <span className="text-[10px] text-slate-400 block font-semibold">Orario</span>
-                        <span className="font-bold text-slate-900 dark:text-white">{exam.time}</span>
+                        <span className="font-bold text-slate-900 dark:text-white truncate block">{exam.time}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
-                      <div>
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <span className="text-[10px] text-slate-400 block font-semibold">Aula / Sede</span>
                         <button
                           onClick={() => openGoogleMaps(exam.room, userSettings.university)}
-                          className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                          className="font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 max-w-full text-left truncate"
                           title="Apri su Google Maps"
                         >
-                          <span>{exam.room || 'Aula Magna'}</span>
-                          <ExternalLink className="w-3 h-3" />
+                          <span className="truncate">{exam.room || 'Aula da definire'}</span>
+                          <ExternalLink className="w-3 h-3 shrink-0" />
                         </button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                       <FileCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <div className="flex-1">
+                      <div className="min-w-0 flex-1 overflow-hidden">
                         <span className="text-[10px] text-slate-400 block font-semibold">Stato Iscrizione</span>
                         <select
                           value={exam.registrationStatus || 'In attesa'}
                           onChange={(e) => updateEsame(exam.id, { registrationStatus: e.target.value as RegistrationStatus })}
-                          className={`mt-0.5 px-2 py-0.5 rounded-lg text-xs font-bold border cursor-pointer focus:outline-none ${getStatusBadge(
+                          className={`mt-0.5 px-2 py-0.5 rounded-lg text-xs font-bold border cursor-pointer focus:outline-none w-full max-w-full truncate ${getStatusBadge(
                             exam.registrationStatus || 'In attesa'
                           )}`}
                         >

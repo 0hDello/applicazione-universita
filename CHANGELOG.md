@@ -1,5 +1,12 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.11] - 2026-09-01
+
+### Modifiche e Risoluzione Bug
+
+- Allineamento Aula e Sede: risolto l'overflow visivo dei testi degli indirizzi lunghi nella modale dei dettagli evento del calendario con a capo automatico pulito e contenimento nei bordi.
+- Appelli ed Esami: risolto l'overflow dello stato d'iscrizione nelle schede esame quando l'applicazione è in modalità finestra grazie a un layout a griglia responsivo con troncamento sicuro.
+
 ## [v1.0.10] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug

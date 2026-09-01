@@ -871,51 +871,51 @@ export const CalendarioView: React.FC = () => {
 
             {/* Modal Details Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 min-w-0">
                 <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-bold text-slate-900 dark:text-white">Data e Orario</p>
-                  <p className="text-slate-500 dark:text-slate-400 font-medium">
+                  <p className="text-slate-500 dark:text-slate-400 font-medium truncate">
                     {viewingModalEvent.date} • {viewingModalEvent.time}
                   </p>
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 min-w-0">
                 <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1 overflow-hidden">
                   <p className="font-bold text-slate-900 dark:text-white">Aula / Sede</p>
                   {viewingModalEvent.room ? (
                     <button
                       onClick={() => openGoogleMaps(viewingModalEvent.room, userSettings.university)}
-                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 truncate"
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-start gap-1 text-left w-full group/map mt-0.5 min-w-0"
                       title="Apri indicazioni su Google Maps"
                     >
-                      <span className="truncate">{viewingModalEvent.room}</span>
-                      <ExternalLink className="w-3 h-3 shrink-0" />
+                      <span className="break-words leading-tight flex-1 text-xs min-w-0">{viewingModalEvent.room}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0 mt-0.5 opacity-80 group-hover/map:opacity-100" />
                     </button>
                   ) : (
-                    <p className="text-slate-400">Non specificata</p>
+                    <p className="text-slate-400 font-medium">Non specificata</p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2">
+              <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2 min-w-0">
                 <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="font-bold text-slate-900 dark:text-white">Corso</p>
-                  <p className="text-slate-700 dark:text-slate-300 font-bold">
+                  <p className="text-slate-700 dark:text-slate-300 font-bold break-words">
                     {viewingModalEvent.courseName || 'Corso Generale'}
                   </p>
                 </div>
               </div>
 
               {viewingModalEvent.notes && (
-                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2">
+                <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2 min-w-0">
                   <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="font-bold text-slate-900 dark:text-white">Note</p>
-                    <p className="text-slate-600 dark:text-slate-300 font-medium">
+                    <p className="text-slate-600 dark:text-slate-300 font-medium break-words whitespace-pre-wrap">
                       {viewingModalEvent.notes}
                     </p>
                   </div>
