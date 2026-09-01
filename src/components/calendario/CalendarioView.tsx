@@ -3,6 +3,7 @@ import { useApp } from '../../context/AppContext';
 import type { EventoCalendario, EventCategory } from '../../types';
 import { TimeSlotPicker } from '../common/TimeSlotPicker';
 import { openGoogleMaps } from '../../utils/mapUtils';
+import { ImportOrarioModal } from '../corsi/ImportOrarioModal';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -39,6 +40,7 @@ export const CalendarioView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'Mese' | 'Settimana' | 'Giorno'>('Mese');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewingModalEvent, setViewingModalEvent] = useState<EventoCalendario | null>(null);
+  const [isImportingOrario, setIsImportingOrario] = useState<boolean>(false);
 
   // New Event Form State
   const [isAddingEvent, setIsAddingEvent] = useState(false);
@@ -337,6 +339,16 @@ export const CalendarioView: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            {/* OCR Timetable Import Button */}
+            <button
+              onClick={() => setIsImportingOrario(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-xs"
+              title="Importa da screenshot o file"
+            >
+              <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span className="hidden sm:inline">Importa orario (OCR)</span>
+            </button>
 
             {/* Main Add Button */}
             <button
@@ -1264,6 +1276,11 @@ export const CalendarioView: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* IMPORT ORARIO MODAL */}
+      {isImportingOrario && (
+        <ImportOrarioModal onClose={() => setIsImportingOrario(false)} />
       )}
     </div>
   );

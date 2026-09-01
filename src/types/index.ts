@@ -14,6 +14,8 @@ export interface TopicItem {
   completed: boolean;
 }
 
+export type AttendanceStatus = 'presente' | 'assente' | 'non_registrata';
+
 export interface Lezione {
   id: string;
   number: number;
@@ -25,6 +27,12 @@ export interface Lezione {
   notes?: string;
   status: 'svolta' | 'programmata' | 'da_recuperare';
   hasNotes: boolean;
+  attendance?: AttendanceStatus;
+  attendanceRecordedAt?: string;
+  recovered?: boolean;
+  recoveredDate?: string;
+  recoveredNotes?: string;
+  topicCompleted?: boolean;
 }
 
 export interface Corso {
@@ -35,7 +43,14 @@ export interface Corso {
   cfu: number;
   color: string;
   icon: string;
+  emoji?: string;
+  bannerUrl?: string;
+  bannerGradient?: string;
   progress: number;
+  attendanceMandatory?: boolean;
+  minAttendancePercentage?: number;
+  startDate?: string;
+  endDate?: string;
   nextLecture?: {
     date: string;
     dayName: string;
@@ -124,6 +139,10 @@ export interface Risorsa {
   isFavorite: boolean;
   openCount?: number;
   url?: string;
+  fileData?: string;
+  mimeType?: string;
+  fileName?: string;
+  fileId?: string;
 }
 
 export interface SemesterGoal {
@@ -161,6 +180,8 @@ export interface AppNotification {
   linkView?: NavView;
 }
 
+export type FontSizeOption = 'small' | 'medium' | 'large' | 'xlarge';
+
 export interface UserSettings {
   name: string;
   email: string;
@@ -174,6 +195,7 @@ export interface UserSettings {
   department?: string;
   theme: 'light' | 'dark' | 'system';
   accentColor: string;
+  fontSize?: FontSizeOption;
   notifications: {
     lessonReminders: boolean;
     examDeadlines: boolean;
@@ -184,3 +206,4 @@ export interface UserSettings {
   defaultReminder: string;
   autoBackup: boolean;
 }
+

@@ -166,19 +166,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [userSettings.theme]);
 
+  // Apply font size class to html element
+  useEffect(() => {
+    const size = userSettings.fontSize || 'medium';
+    document.documentElement.setAttribute('data-font-size', size);
+  }, [userSettings.fontSize]);
+
   // Apply accent color to CSS variables
   useEffect(() => {
     const color = userSettings.accentColor || '#2563eb';
-    const cleanHex = color.replace('#', '');
+    let cleanHex = color.replace('#', '');
+    if (cleanHex.length === 3) {
+      cleanHex = cleanHex.split('').map((c) => c + c).join('');
+    }
     let rgb = '37, 99, 235';
+    let hoverColor = color;
     if (cleanHex.length === 6) {
       const r = parseInt(cleanHex.substring(0, 2), 16);
       const g = parseInt(cleanHex.substring(2, 4), 16);
       const b = parseInt(cleanHex.substring(4, 6), 16);
-      rgb = `${r}, ${g}, ${b}`;
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        rgb = `${r}, ${g}, ${b}`;
+        const darkR = Math.max(0, Math.floor(r * 0.85));
+        const darkG = Math.max(0, Math.floor(g * 0.85));
+        const darkB = Math.max(0, Math.floor(b * 0.85));
+        hoverColor = `rgb(${darkR}, ${darkG}, ${darkB})`;
+      }
     }
     document.documentElement.style.setProperty('--color-primary', color);
-    document.documentElement.style.setProperty('--color-primary-hover', color);
+    document.documentElement.style.setProperty('--color-primary-hover', hoverColor);
     document.documentElement.style.setProperty('--color-primary-rgb', rgb);
   }, [userSettings.accentColor]);
 
@@ -378,7 +394,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
         const notesCount = updatedLezioni.filter((l) => l.hasNotes).length;
         const notesPercent = updatedLezioni.length > 0 ? Math.round((notesCount / updatedLezioni.length) * 100) : 0;
-        return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
+
+        // Reactive progress computation
+        const completedLectures = updatedLezioni.filter((l) => l.topicCompleted || l.status === 'svolta').length;
+        const totalItems = (c.topics.length || 0) + updatedLezioni.length;
+        const totalDone = (c.topics.filter((t) => t.completed).length) + completedLectures;
+        const calculatedProgress = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : c.progress;
+
+        return {
+          ...c,
+          lezioni: updatedLezioni,
+          notesOrganized: notesPercent,
+          progress: calculatedProgress,
+        };
       })
     );
   };

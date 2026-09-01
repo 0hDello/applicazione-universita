@@ -397,11 +397,11 @@ export const ImpostazioniView: React.FC = () => {
           </div>
         </div>
 
-        {/* CARD 4: TEMA */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
+        {/* CARD 4: TEMA & COLORI */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-5">
           <div className="flex items-center gap-2 font-bold text-sm text-slate-900 dark:text-white">
             <Palette className="w-4 h-4 text-blue-600" />
-            <span>Tema</span>
+            <span>Tema & Personalizzazione Visiva</span>
           </div>
 
           <div className="grid grid-cols-3 gap-3 text-xs text-center">
@@ -424,28 +424,134 @@ export const ImpostazioniView: React.FC = () => {
             ))}
           </div>
 
-          <div>
-            <label className="font-semibold text-slate-600 dark:text-slate-400 block text-xs mb-2">
-              Colore tema (Accent Color)
-            </label>
+          {/* FREE COLOR PICKER (SCELTA LIBERA) */}
+          <div className="flex flex-col gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="font-bold text-slate-900 dark:text-white block text-xs">
+                  Colore tema (Accent Color Libero)
+                </label>
+                <p className="text-[10px] text-slate-400">
+                  Scegli qualsiasi colore con il selettore o digita il codice HEX/RGB
+                </p>
+              </div>
+
+              {/* Color preview badge */}
+              <div
+                className="px-3 py-1 rounded-xl text-white font-mono text-xs font-bold shadow-xs flex items-center gap-2"
+                style={{ backgroundColor: formData.accentColor || '#2563eb' }}
+              >
+                <span>{formData.accentColor || '#2563eb'}</span>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3 flex-wrap">
-              {accentColors.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => {
-                    setFormData((prev) => ({ ...prev, accentColor: color }));
-                    updateUserSettings({ accentColor: color });
+              {/* Native color wheel picker */}
+              <label
+                className="w-10 h-10 rounded-2xl border-2 border-slate-200 dark:border-slate-700 flex items-center justify-center cursor-pointer hover:border-blue-500 transition-all shadow-xs shrink-0 overflow-hidden relative"
+                title="Apri tavolozza colori"
+              >
+                <input
+                  type="color"
+                  value={formData.accentColor || '#2563eb'}
+                  onChange={(e) => {
+                    const newCol = e.target.value;
+                    setFormData((prev) => ({ ...prev, accentColor: newCol }));
+                    updateUserSettings({ accentColor: newCol });
                   }}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-xs ${
-                    formData.accentColor === color ? 'ring-3 ring-offset-2 ring-slate-400 dark:ring-slate-500 scale-105' : ''
-                  }`}
-                  style={{ backgroundColor: color }}
-                  title={color}
-                >
-                  {formData.accentColor === color && <Check className="w-4 h-4 text-white" />}
-                </button>
-              ))}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+                <div
+                  className="w-full h-full"
+                  style={{ backgroundColor: formData.accentColor || '#2563eb' }}
+                />
+              </label>
+
+              {/* Text HEX input */}
+              <div className="flex-1 min-w-[140px] max-w-[200px]">
+                <input
+                  type="text"
+                  value={formData.accentColor || '#2563eb'}
+                  onChange={(e) => {
+                    let val = e.target.value;
+                    if (!val.startsWith('#') && val.length > 0) {
+                      val = `#${val}`;
+                    }
+                    setFormData((prev) => ({ ...prev, accentColor: val }));
+                    if (/^#[0-9A-F]{6}$/i.test(val) || /^#[0-9A-F]{3}$/i.test(val)) {
+                      updateUserSettings({ accentColor: val });
+                    }
+                  }}
+                  placeholder="#2563eb"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-mono font-bold text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                />
+              </div>
+
+              {/* Swatch Presets */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {accentColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, accentColor: color }));
+                      updateUserSettings({ accentColor: color });
+                    }}
+                    className={`w-7 h-7 rounded-full flex items-center justify-center transition-all hover:scale-110 shadow-xs ${
+                      formData.accentColor?.toLowerCase() === color.toLowerCase()
+                        ? 'ring-3 ring-offset-2 ring-slate-400 dark:ring-slate-500 scale-105'
+                        : ''
+                    }`}
+                    style={{ backgroundColor: color }}
+                    title={color}
+                  >
+                    {formData.accentColor?.toLowerCase() === color.toLowerCase() && (
+                      <Check className="w-3.5 h-3.5 text-white" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* FONT SIZE PREFERENCE (DIMENSIONE FONT REGOLABILE) */}
+          <div className="flex flex-col gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <div>
+              <label className="font-bold text-slate-900 dark:text-white block text-xs">
+                Dimensione Font dell'Applicazione
+              </label>
+              <p className="text-[10px] text-slate-400">
+                Regola la grandezza del testo per adattarla alle tue preferenze di lettura (predefinito aumentato a 16px)
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {[
+                { id: 'small', label: 'Piccolo (14px)', desc: 'Compatto' },
+                { id: 'medium', label: 'Medio (16px)', desc: 'Predefinito' },
+                { id: 'large', label: 'Grande (18px)', desc: 'Più leggibile' },
+                { id: 'xlarge', label: 'Molto Grande (20px)', desc: 'Massima leggibilità' },
+              ].map((item) => {
+                const isSelected = (formData.fontSize || 'medium') === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, fontSize: item.id as any }));
+                      updateUserSettings({ fontSize: item.id as any });
+                    }}
+                    className={`p-3 rounded-2xl border text-left flex flex-col justify-between transition-all ${
+                      isSelected
+                        ? 'border-blue-600 bg-blue-50/80 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="font-bold">{item.label}</span>
+                    <span className="text-[10px] text-slate-400 mt-1">{item.desc}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

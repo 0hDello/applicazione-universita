@@ -1,5 +1,18 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.12] - 2026-09-01
+
+### Nuove Funzionalità e Miglioramenti
+
+- **Calcolatore Presenze (Frequenza Obbligatoria)**: Calcolo in tempo reale di presenze, percentuale e assenze residue consentite con soglia personalizzabile (es. 75%), periodo lezioni e toggle rapido presenza/assenza.
+- **Lezioni da Recuperare (Suggerimento Automatico)**: Tracciamento automatico delle lezioni con assenza, sezione dedicata con dettagli e pulsante "Segna come recuperata" con storico e note.
+- **Personalizzazione Tema Colore (Scelta Libera)**: Color picker con ruota colori libera, codice HEX/RGB e applicazione dinamica istantanea su tutta l'interfaccia.
+- **Personalizzazione Visiva Corsi**: Scelta di colore distintivo, emoji tematica e banner di copertina / gradiente per ciascun corso con visualizzazione nelle card e nei dettagli.
+- **Dimensione Font Regolabile**: Dimensione predefinita aumentata per massima leggibilità (16px) e selettore dimensioni (Piccolo, Medio, Grande, Molto Grande) nelle Impostazioni.
+- **Import Orario da Screenshot (OCR) & Bulk Import**: Riconoscimento ottico client-side dei calendari da immagine/screenshot con anteprima interattiva e importazione bulk CSV/JSON.
+- **Argomenti Lezioni & Sincronizzazione Programma**: Gestione argomenti trattati per ogni lezione e sincronizzazione interattiva con la scheda "Programma e Argomenti".
+- **Libreria Risorse Avanzata**: Selezione esplicita del corso associato o generale, archiviazione locale persistente in IndexedDB e visualizzatore integrato a schermo per PDF, immagini, audio, video e link.
+
 ## [v1.0.11] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug

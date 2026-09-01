@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
-import type { ResourceType } from '../../types';
+import type { ResourceType, Risorsa } from '../../types';
+import { ResourceViewerModal } from './ResourceViewerModal';
+import { storeFile } from '../../utils/fileStorage';
 import {
   Archive,
   Search,
@@ -19,6 +21,7 @@ import {
   Trash2,
   ExternalLink,
   FolderOpen,
+  Eye,
 } from 'lucide-react';
 
 export const RisorseView: React.FC = () => {
@@ -26,7 +29,10 @@ export const RisorseView: React.FC = () => {
   const [selectedType, setSelectedType] = useState<string>('Tutti');
   const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('Tutti');
   const [searchFilter, setSearchFilter] = useState<string>('');
+
+  // Modals state
   const [isAddingResource, setIsAddingResource] = useState(false);
+  const [viewingResource, setViewingResource] = useState<Risorsa | null>(null);
 
   // Hidden file input ref for native file uploads
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,9 +40,10 @@ export const RisorseView: React.FC = () => {
   // Form state for manual resource / link addition
   const [newTitle, setNewTitle] = useState('');
   const [newType, setNewType] = useState<ResourceType>('PDF');
-  const [newCourse, setNewCourse] = useState('');
+  const [newCourse, setNewCourse] = useState('Risorsa Generale (Tutti i corsi)');
   const [newUrl, setNewUrl] = useState('');
   const [newSize, setNewSize] = useState('');
+  const [selectedUploadedFile, setSelectedUploadedFile] = useState<File | null>(null);
 
   // Helper to get matching icon
   const getResourceTypeIcon = (type: ResourceType) => {
@@ -80,8 +87,8 @@ export const RisorseView: React.FC = () => {
     return 'PDF';
   };
 
-  // Handle native file selection
-  const handleNativeFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Handle native file selection directly from toolbar
+  const handleNativeFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -91,27 +98,39 @@ export const RisorseView: React.FC = () => {
       year: 'numeric',
     });
 
-    Array.from(files).forEach((file) => {
+    const targetCourse = selectedCourseFilter !== 'Tutti' ? selectedCourseFilter : 'Risorsa Generale (Tutti i corsi)';
+
+    for (const file of Array.from(files)) {
       const detectedType = guessTypeFromFileName(file.name);
+      const fileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+      try {
+        await storeFile(fileId, file, file.name);
+      } catch (err) {
+        console.error('Error saving to IndexedDB:', err);
+      }
+
       addRisorsa({
         title: file.name.replace(/\.[^/.]+$/, ''),
         type: detectedType,
         size: formatFileSize(file.size),
         uploadDate: today,
-        courseName: selectedCourseFilter !== 'Tutti' ? selectedCourseFilter : corsi[0]?.name || 'Generale',
+        courseName: targetCourse,
         isFavorite: false,
         openCount: 0,
+        fileName: file.name,
+        mimeType: file.type,
+        fileId: fileId,
       });
-    });
+    }
 
-    // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Handle manual modal submission
-  const handleCreateResource = (e: React.FormEvent) => {
+  // Handle manual form submission with optional file upload or link
+  const handleCreateResource = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
@@ -121,14 +140,30 @@ export const RisorseView: React.FC = () => {
       year: 'numeric',
     });
 
+    let generatedFileId: string | undefined = undefined;
+    let computedSize = newSize.trim();
+
+    if (selectedUploadedFile) {
+      generatedFileId = `file_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      computedSize = formatFileSize(selectedUploadedFile.size);
+      try {
+        await storeFile(generatedFileId, selectedUploadedFile, selectedUploadedFile.name);
+      } catch (err) {
+        console.error('Error storing file in IndexedDB:', err);
+      }
+    }
+
     addRisorsa({
       title: newTitle.trim(),
       type: newType,
-      size: newSize.trim() || (newType === 'Link' ? 'Link web' : 'File'),
+      size: computedSize || (newType === 'Link' ? 'Link web' : 'File'),
       uploadDate: today,
-      courseName: newCourse || corsi[0]?.name || 'Generale',
+      courseName: newCourse || 'Risorsa Generale (Tutti i corsi)',
       isFavorite: false,
       url: newUrl.trim() || undefined,
+      fileId: generatedFileId,
+      fileName: selectedUploadedFile?.name,
+      mimeType: selectedUploadedFile?.type,
       openCount: 0,
     });
 
@@ -136,10 +171,16 @@ export const RisorseView: React.FC = () => {
     setNewTitle('');
     setNewUrl('');
     setNewSize('');
+    setSelectedUploadedFile(null);
   };
 
-  // Dynamic category cards with real counts
-  const categoryDefinitions: { type: ResourceType; label: string; icon: React.FC<{ className?: string }>; color: string }[] = [
+  // Dynamic category definitions
+  const categoryDefinitions: {
+    type: ResourceType;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+    color: string;
+  }[] = [
     { type: 'PDF', label: 'PDF', icon: FileText, color: 'text-red-500 bg-red-50 dark:bg-red-950/40' },
     { type: 'Slide', label: 'Slide', icon: Presentation, color: 'text-amber-500 bg-amber-50 dark:bg-amber-950/40' },
     { type: 'Link', label: 'Link', icon: Link2, color: 'text-emerald-500 bg-emerald-50 dark:bg-emerald-950/40' },
@@ -149,9 +190,13 @@ export const RisorseView: React.FC = () => {
     { type: 'Esercizio', label: 'Esercizi', icon: Dumbbell, color: 'text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' },
   ];
 
-  // Unique list of course names for filtering
+  // List of course options including "Risorsa Generale"
   const courseOptions = Array.from(
-    new Set([...corsi.map((c) => c.name), ...risorse.map((r) => r.courseName)])
+    new Set([
+      'Risorsa Generale (Tutti i corsi)',
+      ...corsi.map((c) => c.name),
+      ...risorse.map((r) => r.courseName),
+    ])
   ).filter(Boolean);
 
   // Filtered resources
@@ -165,7 +210,7 @@ export const RisorseView: React.FC = () => {
   const favoritesList = risorse.filter((r) => r.isFavorite);
   const recentList = [...risorse].slice(-4).reverse();
 
-  // Approximate storage calculation
+  // Storage calculation
   const calculateTotalMB = (): number => {
     let totalMB = 0;
     risorse.forEach((r) => {
@@ -210,7 +255,7 @@ export const RisorseView: React.FC = () => {
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">Libreria Risorse</h2>
             </div>
             <p className="text-xs text-slate-400 font-medium mt-1">
-              Organizza e accedi facilmente a tutti i materiali utili per i tuoi studi.
+              Organizza, carica file PDF/slide per ciascun corso e visualizzali direttamente nell'app.
             </p>
           </div>
 
@@ -227,7 +272,7 @@ export const RisorseView: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
             >
               <Upload className="w-4 h-4" />
-              <span>Carica file</span>
+              <span>Carica file dal PC</span>
             </button>
           </div>
         </div>
@@ -240,18 +285,19 @@ export const RisorseView: React.FC = () => {
               type="text"
               value={searchFilter}
               onChange={(e) => setSearchFilter(e.target.value)}
-              placeholder="Cerca risorse..."
+              placeholder="Cerca risorse per titolo..."
               className="w-full pl-10 pr-4 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            {/* Filter by Course */}
             <select
               value={selectedCourseFilter}
               onChange={(e) => setSelectedCourseFilter(e.target.value)}
               className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 focus:outline-none"
             >
-              <option value="Tutti">Tutti i corsi ({corsi.length})</option>
+              <option value="Tutti">Tutti i corsi / Generali</option>
               {courseOptions.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -259,6 +305,7 @@ export const RisorseView: React.FC = () => {
               ))}
             </select>
 
+            {/* Filter by Type */}
             <select
               value={selectedType}
               onChange={(e) => setSelectedType(e.target.value)}
@@ -274,7 +321,7 @@ export const RisorseView: React.FC = () => {
           </div>
         </div>
 
-        {/* 7 Resource Category Count Cards (Real Dynamic Counts) */}
+        {/* 7 Resource Category Count Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
           {categoryDefinitions.map((cat) => {
             const Icon = cat.icon;
@@ -332,9 +379,7 @@ export const RisorseView: React.FC = () => {
                     : 'Nessuna risorsa ancora caricata'}
                 </h5>
                 <p className="text-xs text-slate-400 max-w-sm mt-1">
-                  {searchFilter || selectedType !== 'Tutti' || selectedCourseFilter !== 'Tutti'
-                    ? 'Prova a reimpostare i filtri per vedere tutte le risorse.'
-                    : 'Carica slide, PDF, link web o registrazioni per averli sempre a portata di mano per i tuoi esami.'}
+                  Carica dispense, slide, PDF o link web per averli sempre disponibili con il visualizzatore integrato.
                 </p>
               </div>
 
@@ -377,9 +422,20 @@ export const RisorseView: React.FC = () => {
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold max-w-[120px] truncate">
+                    {/* Course Badge */}
+                    <span className="px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-[10px] font-bold max-w-[140px] truncate">
                       {res.courseName}
                     </span>
+
+                    {/* OPEN / VIEW BUTTON */}
+                    <button
+                      onClick={() => setViewingResource(res)}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors"
+                      title="Apri e visualizza risorsa"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Apri</span>
+                    </button>
 
                     {res.url && (
                       <a
@@ -387,7 +443,7 @@ export const RisorseView: React.FC = () => {
                         target="_blank"
                         rel="noreferrer"
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 transition-colors"
-                        title="Apri link"
+                        title="Apri link in nuova scheda"
                       >
                         <ExternalLink className="w-4 h-4" />
                       </a>
@@ -438,7 +494,8 @@ export const RisorseView: React.FC = () => {
               {recentList.map((res) => (
                 <div
                   key={res.id}
-                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                  onClick={() => setViewingResource(res)}
+                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs cursor-pointer hover:border-blue-500 transition-all"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {getResourceTypeIcon(res.type)}
@@ -476,7 +533,8 @@ export const RisorseView: React.FC = () => {
               {favoritesList.slice(0, 5).map((res) => (
                 <div
                   key={res.id}
-                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs"
+                  onClick={() => setViewingResource(res)}
+                  className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between text-xs cursor-pointer hover:border-amber-400 transition-all"
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     {getResourceTypeIcon(res.type)}
@@ -496,7 +554,7 @@ export const RisorseView: React.FC = () => {
           )}
         </div>
 
-        {/* Spazio Utilizzato Widget (Calcolato sui dati reali) */}
+        {/* Spazio Utilizzato Widget */}
         <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -528,10 +586,10 @@ export const RisorseView: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Aggiungi Risorsa / Link */}
+      {/* Modal Aggiungi Risorsa / File / Link */}
       {isAddingResource && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">Nuova Risorsa</h3>
               <button
@@ -557,9 +615,32 @@ export const RisorseView: React.FC = () => {
                 />
               </div>
 
+              {/* SELEZIONE CORSO ESPLICITA */}
+              <div>
+                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                  Associa al Corso *
+                </label>
+                <select
+                  value={newCourse}
+                  onChange={(e) => setNewCourse(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white font-bold focus:outline-none"
+                >
+                  <option value="Risorsa Generale (Tutti i corsi)">
+                    🌐 Risorsa Generale (Tutti i corsi)
+                  </option>
+                  {corsi.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      📚 {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Tipo</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    Tipo di Risorsa
+                  </label>
                   <select
                     value={newType}
                     onChange={(e) => setNewType(e.target.value as ResourceType)}
@@ -576,28 +657,28 @@ export const RisorseView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
-                  <select
-                    value={newCourse}
-                    onChange={(e) => setNewCourse(e.target.value)}
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    {newType === 'Link' ? 'Tipo Link' : 'Dimensione / Info'}
+                  </label>
+                  <input
+                    type="text"
+                    value={newSize}
+                    onChange={(e) => setNewSize(e.target.value)}
+                    placeholder={newType === 'Link' ? 'Link web' : 'Es. 2.4 MB'}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
-                  >
-                    <option value="">Seleziona corso...</option>
-                    {corsi.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                    {corsi.length === 0 && <option value="Generale">Generale</option>}
-                  </select>
+                  />
                 </div>
               </div>
 
+              {/* URL OR FILE UPLOAD */}
               {newType === 'Link' ? (
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">URL Link</label>
+                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                    URL Link *
+                  </label>
                   <input
                     type="url"
+                    required
                     value={newUrl}
                     onChange={(e) => setNewUrl(e.target.value)}
                     placeholder="https://..."
@@ -607,14 +688,21 @@ export const RisorseView: React.FC = () => {
               ) : (
                 <div>
                   <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                    Dimensione stimata (opzionale)
+                    Carica file da visualizzare (PDF, slide, immagini, ecc.)
                   </label>
                   <input
-                    type="text"
-                    value={newSize}
-                    onChange={(e) => setNewSize(e.target.value)}
-                    placeholder="Es. 2.4 MB"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    type="file"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setSelectedUploadedFile(file);
+                        if (!newTitle) {
+                          setNewTitle(file.name.replace(/\.[^/.]+$/, ''));
+                        }
+                        setNewType(guessTypeFromFileName(file.name));
+                      }
+                    }}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
                   />
                 </div>
               )}
@@ -631,12 +719,20 @@ export const RisorseView: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
                 >
-                  Aggiungi risorsa
+                  Salva risorsa
                 </button>
               </div>
             </form>
           </div>
         </div>
+      )}
+
+      {/* RESOURCE VIEWER MODAL */}
+      {viewingResource && (
+        <ResourceViewerModal
+          resource={viewingResource}
+          onClose={() => setViewingResource(null)}
+        />
       )}
     </div>
   );
