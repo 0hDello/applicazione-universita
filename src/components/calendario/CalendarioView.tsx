@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import type { EventoCalendario, EventCategory } from '../../types';
+import { TimeSlotPicker } from '../common/TimeSlotPicker';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -13,21 +14,104 @@ import {
   Trash2,
   X,
   FileText,
+  CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 
 export const CalendarioView: React.FC = () => {
   const { eventi, addEvento, deleteEvento, esami, corsi } = useApp();
   const [activeTab, setActiveTab] = useState<'Mese' | 'Settimana' | 'Giorno'>('Mese');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [selectedEvent, setSelectedEvent] = useState<EventoCalendario | null>(eventi[0] || null);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
 
-  const currentDate = new Date();
+  // New Event Form State
+  const [newTitle, setNewTitle] = useState('');
+  const [newCategory, setNewCategory] = useState<EventCategory>('Lezione');
+  const [newDate, setNewDate] = useState(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [newStartTime, setNewStartTime] = useState('09:00');
+  const [newEndTime, setNewEndTime] = useState('11:00');
+  const [newRoom, setNewRoom] = useState('');
+  const [newCourse, setNewCourse] = useState(corsi[0]?.name || '');
+  const [newNotes, setNewNotes] = useState('');
+
   const currentYear = currentDate.getFullYear();
   const currentMonth = currentDate.getMonth();
   const currentDay = currentDate.getDate();
-  const monthNames = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-  const weekDays = ['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM'];
 
+  const monthNames = [
+    'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+    'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+  ];
+  const weekDays = ['LUN', 'MAR', 'MER', 'GIO', 'VEN', 'SAB', 'DOM'];
+  const weekDaysFull = ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'];
+
+  // Navigation Handlers
+  const handlePrev = () => {
+    if (activeTab === 'Mese') {
+      setCurrentDate(new Date(currentYear, currentMonth - 1, 1));
+    } else if (activeTab === 'Settimana') {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 7);
+      setCurrentDate(d);
+    } else {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() - 1);
+      setCurrentDate(d);
+    }
+  };
+
+  const handleNext = () => {
+    if (activeTab === 'Mese') {
+      setCurrentDate(new Date(currentYear, currentMonth + 1, 1));
+    } else if (activeTab === 'Settimana') {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 7);
+      setCurrentDate(d);
+    } else {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + 1);
+      setCurrentDate(d);
+    }
+  };
+
+  const handleToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // Helper for Week calculations (Monday-Sunday)
+  const getStartOfWeek = (d: Date) => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+    return new Date(date.setDate(diff));
+  };
+
+  const startOfWeek = getStartOfWeek(currentDate);
+  const weekDaysDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(startOfWeek);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const formatDateYMD = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const getWeekRangeTitle = () => {
+    const first = weekDaysDates[0];
+    const last = weekDaysDates[6];
+    const firstStr = `${first.getDate()} ${monthNames[first.getMonth()].substring(0, 3)}`;
+    const lastStr = `${last.getDate()} ${monthNames[last.getMonth()].substring(0, 3)} ${last.getFullYear()}`;
+    return `${firstStr} – ${lastStr}`;
+  };
+
+  // Month grid calculations
   const daysInMonthCount = new Date(currentYear, currentMonth + 1, 0).getDate();
   const daysInMonth = Array.from({ length: daysInMonthCount }, (_, i) => i + 1);
 
@@ -41,17 +125,6 @@ export const CalendarioView: React.FC = () => {
   const nextMonthFillerDaysCount = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
   const nextMonthFillerDays = Array.from({ length: nextMonthFillerDaysCount }, (_, i) => i + 1);
 
-  // New Event Form State
-  const [newTitle, setNewTitle] = useState('');
-  const [newCategory, setNewCategory] = useState<EventCategory>('Lezione');
-  const [newDate, setNewDate] = useState(() => {
-    return `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(currentDay).padStart(2, '0')}`;
-  });
-  const [newTime, setNewTime] = useState('11:00 - 12:30');
-  const [newRoom, setNewRoom] = useState('Aula C1');
-  const [newCourse, setNewCourse] = useState('Chimica Generale');
-  const [newNotes, setNewNotes] = useState('');
-
   const handleCreateEvent = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle) return;
@@ -59,29 +132,35 @@ export const CalendarioView: React.FC = () => {
       title: newTitle,
       category: newCategory,
       date: newDate,
-      time: newTime,
-      room: newRoom,
-      courseName: newCourse,
+      time: `${newStartTime} - ${newEndTime}`,
+      room: newRoom || 'Aula da definire',
+      courseName: newCourse || 'Corso',
       notes: newNotes,
       reminder: '15 minuti prima',
     });
     setIsAddingEvent(false);
     setNewTitle('');
     setNewNotes('');
+    setNewRoom('');
+  };
+
+  const openAddForDate = (dateStr: string) => {
+    setNewDate(dateStr);
+    setIsAddingEvent(true);
   };
 
   const getCategoryBadgeClass = (category: EventCategory) => {
     switch (category) {
       case 'Lezione':
-        return 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-800/60';
+        return 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/70';
       case 'Esame':
-        return 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200/60 dark:border-red-800/60';
+        return 'bg-red-50 dark:bg-red-950/50 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/70';
       case 'Scadenza':
-        return 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-800/60';
+        return 'bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/70';
       case 'Studio':
-        return 'bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 border-purple-200/60 dark:border-purple-800/60';
+        return 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/70';
       default:
-        return 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200';
+        return 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
     }
   };
 
@@ -100,7 +179,6 @@ export const CalendarioView: React.FC = () => {
     }
   };
 
-  // Map events to day numbers for current month
   const getEventsForDay = (day: number) => {
     const dayStr = day.toString().padStart(2, '0');
     const monthStr = (currentMonth + 1).toString().padStart(2, '0');
@@ -108,26 +186,52 @@ export const CalendarioView: React.FC = () => {
     return eventi.filter((e) => e.date === fullDate);
   };
 
+  const getEventsForExactDate = (dateStr: string) => {
+    return eventi.filter((e) => e.date === dateStr);
+  };
+
+  const todayYMD = formatDateYMD(new Date());
+  const selectedDateYMD = formatDateYMD(currentDate);
+
+  const hoursList = [
+    '08:00', '09:00', '10:00', '11:00', '12:00', '13:00',
+    '14:00', '15:00', '16:00', '17:00', '18:00', '19:00', '20:00'
+  ];
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-8">
       {/* Main Calendar View Area */}
-      <div className="flex-1 flex flex-col gap-6">
+      <div className="flex-1 flex flex-col gap-6 min-w-0">
         {/* Calendar Header Controls */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <CalendarIcon className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{monthNames[currentMonth]} {currentYear}</h3>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900">
+                <CalendarIcon className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {activeTab === 'Mese' && `${monthNames[currentMonth]} ${currentYear}`}
+                  {activeTab === 'Settimana' && getWeekRangeTitle()}
+                  {activeTab === 'Giorno' && `${currentDay} ${monthNames[currentMonth]} ${currentYear}`}
+                </h3>
+                <p className="text-[11px] font-semibold text-slate-400">
+                  {activeTab === 'Mese' && 'Vista Mensile'}
+                  {activeTab === 'Settimana' && 'Orario Settimanale'}
+                  {activeTab === 'Giorno' && weekDaysFull[(currentDate.getDay() + 6) % 7]}
+                </p>
+              </div>
             </div>
+
             {/* View Switcher Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
               {(['Mese', 'Settimana', 'Giorno'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     activeTab === tab
-                      ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-xs'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
                       : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
@@ -138,17 +242,36 @@ export const CalendarioView: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleToday}
+              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+            >
+              Oggi
+            </button>
+
             <div className="flex items-center gap-1">
-              <button className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <button
+                onClick={handlePrev}
+                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+                title="Precedente"
+              >
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button className="w-8 h-8 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
+              <button
+                onClick={handleNext}
+                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
+                title="Successivo"
+              >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
+
             <button
-              onClick={() => setIsAddingEvent(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+              onClick={() => {
+                setNewDate(formatDateYMD(currentDate));
+                setIsAddingEvent(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all hover:scale-102"
             >
               <Plus className="w-4 h-4" />
               <span>Aggiungi evento</span>
@@ -156,111 +279,346 @@ export const CalendarioView: React.FC = () => {
           </div>
         </div>
 
-        {/* Calendar Month Grid */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-xs overflow-hidden">
-          {/* Weekday Header */}
-          <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-            {weekDays.map((day) => (
-              <div
-                key={day}
-                className="py-3 text-center text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Month Days Grid */}
-          <div className="grid grid-cols-7 auto-rows-fr bg-slate-100 dark:bg-slate-800 gap-[1px]">
-            {/* Previous Month filler days */}
-            {fillerDays.map(day => (
-              <div key={`prev-${day}`} className="bg-white dark:bg-slate-900 p-2 min-h-[95px] text-slate-300 dark:text-slate-700 text-xs font-semibold opacity-50">{day}</div>
-            ))}
-
-            {/* Current Month Days */}
-            {daysInMonth.map((day) => {
-              const dayEvents = getEventsForDay(day);
-              const isToday = day === currentDay;
-              return (
+        {/* 1. MESE VIEW */}
+        {activeTab === 'Mese' && (
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs overflow-hidden">
+            {/* Weekday Header */}
+            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+              {weekDays.map((day) => (
                 <div
                   key={day}
-                  className={`bg-white dark:bg-slate-900 p-2 min-h-[105px] flex flex-col gap-1 transition-colors hover:bg-blue-50/20 dark:hover:bg-slate-800/50 ${
-                    isToday ? 'bg-blue-50/30 dark:bg-blue-950/20' : ''
-                  }`}
+                  className="py-3 text-center text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider"
                 >
-                  <div className="flex items-center justify-between">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Month Days Grid */}
+            <div className="grid grid-cols-7 auto-rows-fr bg-slate-100 dark:bg-slate-800 gap-[1px]">
+              {/* Previous Month filler days */}
+              {fillerDays.map((day) => (
+                <div
+                  key={`prev-${day}`}
+                  className="bg-white dark:bg-slate-900 p-2.5 min-h-[105px] text-slate-300 dark:text-slate-700 text-xs font-semibold opacity-40 select-none"
+                >
+                  {day}
+                </div>
+              ))}
+
+              {/* Current Month Days */}
+              {daysInMonth.map((day) => {
+                const dayEvents = getEventsForDay(day);
+                const isToday =
+                  day === new Date().getDate() &&
+                  currentMonth === new Date().getMonth() &&
+                  currentYear === new Date().getFullYear();
+                const cellDateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+                return (
+                  <div
+                    key={day}
+                    onClick={() => {
+                      setCurrentDate(new Date(currentYear, currentMonth, day));
+                    }}
+                    onDoubleClick={() => openAddForDate(cellDateStr)}
+                    className={`bg-white dark:bg-slate-900 p-2.5 min-h-[115px] flex flex-col gap-1.5 transition-colors hover:bg-blue-50/30 dark:hover:bg-slate-800/50 cursor-pointer group ${
+                      isToday ? 'bg-blue-50/40 dark:bg-blue-950/20 ring-1 ring-inset ring-blue-500/30' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
+                          isToday
+                            ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                            : 'text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        {day}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openAddForDate(cellDateStr);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-blue-600 p-0.5 rounded transition-opacity"
+                        title="Aggiungi evento qui"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Day Events Pills */}
+                    <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
+                      {dayEvents.map((ev) => (
+                        <button
+                          key={ev.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedEvent(ev);
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left truncate border transition-transform hover:scale-98 shadow-2xs ${getCategoryBadgeClass(
+                            ev.category
+                          )}`}
+                        >
+                          <div className="truncate font-extrabold">{ev.title}</div>
+                          <div className="text-[9px] opacity-80 truncate flex items-center gap-1">
+                            <span>{ev.time.split(' ')[0]}</span>
+                            {ev.room && <span>• {ev.room}</span>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Next month fillers */}
+              {nextMonthFillerDays.map((day) => (
+                <div
+                  key={`next-${day}`}
+                  className="bg-white dark:bg-slate-900 p-2.5 min-h-[105px] text-slate-300 dark:text-slate-700 text-xs font-semibold opacity-40 select-none"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Legend Bar */}
+            <div className="p-3 bg-slate-50/60 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400 font-semibold">
+              <div className="flex items-center gap-5 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                  <span>Lezione</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                  <span>Esame</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                  <span>Scadenza</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
+                  <span>Studio</span>
+                </div>
+              </div>
+              <span className="text-[11px] text-slate-400">Doppio click su un giorno per aggiungere un evento</span>
+            </div>
+          </div>
+        )}
+
+        {/* 2. SETTIMANA VIEW */}
+        {activeTab === 'Settimana' && (
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs overflow-hidden flex flex-col">
+            {/* Week header columns */}
+            <div className="grid grid-cols-8 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+              <div className="p-3 text-center text-xs font-bold text-slate-400 dark:text-slate-500 border-r border-slate-100 dark:border-slate-800">
+                ORA
+              </div>
+              {weekDaysDates.map((dateObj, idx) => {
+                const dateStr = formatDateYMD(dateObj);
+                const isToday = dateStr === todayYMD;
+                return (
+                  <div
+                    key={dateStr}
+                    onClick={() => {
+                      setCurrentDate(dateObj);
+                      setActiveTab('Giorno');
+                    }}
+                    className={`p-3 text-center cursor-pointer transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60 ${
+                      isToday ? 'bg-blue-50/50 dark:bg-blue-950/30' : ''
+                    }`}
+                  >
+                    <span className="text-[10px] font-bold text-slate-400 block uppercase">
+                      {weekDays[idx]}
+                    </span>
                     <span
-                      className={`text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center ${
-                        isToday
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'text-slate-700 dark:text-slate-300'
+                      className={`text-xs font-extrabold inline-block px-2 py-0.5 rounded-full mt-0.5 ${
+                        isToday ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-800 dark:text-slate-200'
                       }`}
                     >
-                      {day}
+                      {dateObj.getDate()} {monthNames[dateObj.getMonth()].substring(0, 3)}
                     </span>
                   </div>
+                );
+              })}
+            </div>
 
-                  {/* Day Events Pills */}
-                  <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px]">
-                    {dayEvents.map((ev) => (
-                      <button
-                        key={ev.id}
-                        onClick={() => setSelectedEvent(ev)}
-                        className={`px-2 py-1 rounded-md text-[10px] font-semibold text-left truncate border transition-transform hover:scale-98 ${getCategoryBadgeClass(
-                          ev.category
-                        )}`}
-                      >
-                        <div className="font-bold truncate">{ev.time.split(' ')[0]} {ev.title}</div>
-                        {ev.room && <div className="text-[9px] opacity-80 truncate">{ev.room}</div>}
-                      </button>
-                    ))}
+            {/* Week Timetable Matrix */}
+            <div className="overflow-y-auto max-h-[580px] divide-y divide-slate-100 dark:divide-slate-800/70">
+              {hoursList.map((hour) => {
+                const hourNum = parseInt(hour.split(':')[0]);
+                return (
+                  <div key={hour} className="grid grid-cols-8 min-h-[64px] auto-rows-fr">
+                    {/* Hour Column */}
+                    <div className="p-2 text-center text-[11px] font-bold text-slate-400 dark:text-slate-500 bg-slate-50/30 dark:bg-slate-900/40 border-r border-slate-100 dark:border-slate-800 flex items-start justify-center">
+                      {hour}
+                    </div>
+
+                    {/* 7 Days Columns */}
+                    {weekDaysDates.map((dateObj) => {
+                      const dateStr = formatDateYMD(dateObj);
+                      const dayEvents = getEventsForExactDate(dateStr).filter((ev) => {
+                        const evStartHour = parseInt(ev.time.split(':')[0]);
+                        return evStartHour === hourNum;
+                      });
+
+                      return (
+                        <div
+                          key={dateStr}
+                          onClick={() => openAddForDate(dateStr)}
+                          className="p-1 border-r border-slate-100 dark:border-slate-800/50 hover:bg-blue-50/20 dark:hover:bg-slate-800/30 transition-colors flex flex-col gap-1 cursor-pointer"
+                        >
+                          {dayEvents.map((ev) => (
+                            <button
+                              key={ev.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedEvent(ev);
+                              }}
+                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 ${getCategoryBadgeClass(
+                                ev.category
+                              )}`}
+                            >
+                              <div className="font-extrabold truncate">{ev.title}</div>
+                              <div className="text-[9px] opacity-80 truncate">{ev.time}</div>
+                              {ev.room && <div className="text-[9px] opacity-75 truncate font-normal">📍 {ev.room}</div>}
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 3. GIORNO VIEW */}
+        {activeTab === 'Giorno' && (
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs p-6 flex flex-col gap-6">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+              <div>
+                <h4 className="text-lg font-extrabold text-slate-900 dark:text-white">
+                  Programma di {weekDaysFull[(currentDate.getDay() + 6) % 7]}, {currentDay} {monthNames[currentMonth]}
+                </h4>
+                <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                  {getEventsForExactDate(selectedDateYMD).length} eventi programmati per oggi
+                </p>
+              </div>
+
+              <button
+                onClick={() => openAddForDate(selectedDateYMD)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nuova attività oggi</span>
+              </button>
+            </div>
+
+            {/* Timeline of day */}
+            <div className="flex flex-col gap-3">
+              {getEventsForExactDate(selectedDateYMD).length === 0 ? (
+                <div className="py-12 flex flex-col items-center justify-center text-center gap-3">
+                  <div className="w-14 h-14 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                    <CalendarDays className="w-7 h-7" />
+                  </div>
+                  <h5 className="font-bold text-slate-700 dark:text-slate-300 text-sm">
+                    Nessun evento in programma per questa giornata
+                  </h5>
+                  <p className="text-xs text-slate-400 max-w-xs">
+                    Goditi la giornata libera oppure aggiungi una lezione, una sessione di studio o un promemoria.
+                  </p>
+                  <button
+                    onClick={() => openAddForDate(selectedDateYMD)}
+                    className="mt-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-xs hover:bg-blue-700"
+                  >
+                    + Aggiungi evento per questo giorno
+                  </button>
                 </div>
-              );
-            })}
+              ) : (
+                getEventsForExactDate(selectedDateYMD).map((ev) => (
+                  <div
+                    key={ev.id}
+                    onClick={() => setSelectedEvent(ev)}
+                    className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4 cursor-pointer hover:border-blue-400 transition-all"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xs min-w-[75px]">
+                        <Clock className="w-4 h-4 text-blue-600 mb-1" />
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white text-center leading-tight">
+                          {ev.time.split('-')[0]?.trim()}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-semibold">
+                          {ev.time.split('-')[1]?.trim()}
+                        </span>
+                      </div>
 
-            {/* Next month fillers */}
-            {nextMonthFillerDays.map(day => (
-              <div key={`next-${day}`} className="bg-white dark:bg-slate-900 p-2 min-h-[95px] text-slate-300 dark:text-slate-700 text-xs font-semibold opacity-50">{day}</div>
-            ))}
-          </div>
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2.5 h-2.5 rounded-full ${getDotColor(ev.category)}`} />
+                          <h5 className="text-sm font-extrabold text-slate-900 dark:text-white">
+                            {ev.title}
+                          </h5>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getCategoryBadgeClass(ev.category)}`}>
+                            {ev.category}
+                          </span>
+                        </div>
 
-          {/* Calendar Legend Bar */}
-          <div className="p-3 bg-slate-50/50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex items-center gap-6 text-xs text-slate-600 dark:text-slate-400 font-medium">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-              <span>Lezione</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span>
-              <span>Esame</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-              <span>Scadenza</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500"></span>
-              <span>Studio</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
-              <span>Altro</span>
+                        <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 font-medium">
+                          {ev.courseName && (
+                            <span className="flex items-center gap-1">
+                              <BookOpen className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{ev.courseName}</span>
+                            </span>
+                          )}
+                          {ev.room && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                              <span>{ev.room}</span>
+                            </span>
+                          )}
+                        </div>
+
+                        {ev.notes && (
+                          <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 italic bg-white/70 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
+                            "{ev.notes}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteEvento(ev.id);
+                      }}
+                      className="p-2 rounded-xl text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                      title="Elimina"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
-        </div>
+        )}
 
         {/* Selected Event Details Modal/Card */}
         {selectedEvent && (
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col gap-5">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col gap-5">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
               <div className="flex items-center gap-3">
-                <span className={`w-3 h-3 rounded-full ${getDotColor(selectedEvent.category)}`} />
-                <h4 className="text-lg font-bold text-slate-900 dark:text-white">
+                <span className={`w-3.5 h-3.5 rounded-full ${getDotColor(selectedEvent.category)}`} />
+                <h4 className="text-lg font-extrabold text-slate-900 dark:text-white">
                   {selectedEvent.title}
                 </h4>
                 <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getCategoryBadgeClass(
+                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getCategoryBadgeClass(
                     selectedEvent.category
                   )}`}
                 >
@@ -269,7 +627,10 @@ export const CalendarioView: React.FC = () => {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => deleteEvento(selectedEvent.id)}
+                  onClick={() => {
+                    deleteEvento(selectedEvent.id);
+                    setSelectedEvent(null);
+                  }}
                   className="p-2 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
                   title="Elimina evento"
                 >
@@ -288,58 +649,60 @@ export const CalendarioView: React.FC = () => {
               {/* Column 1: Date, Time, Room */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-start gap-3 text-xs">
-                  <Clock className="w-4 h-4 text-slate-400 mt-0.5" />
+                  <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">Data e ora</p>
-                    <p className="text-slate-500 dark:text-slate-400">
+                    <p className="font-bold text-slate-900 dark:text-white">Data e ora</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">
                       {selectedEvent.date} • {selectedEvent.time}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 text-xs">
-                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
+                  <MapPin className="w-4 h-4 text-blue-600 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">Aula</p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      {selectedEvent.room || 'Non specificata'} • Edificio di Scienze
+                    <p className="font-bold text-slate-900 dark:text-white">Aula</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">
+                      {selectedEvent.room || 'Non specificata'}
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-start gap-3 text-xs">
-                  <Bell className="w-4 h-4 text-slate-400 mt-0.5" />
+                  <Bell className="w-4 h-4 text-blue-600 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">Promemoria</p>
-                    <p className="text-slate-500 dark:text-slate-400">
+                    <p className="font-bold text-slate-900 dark:text-white">Promemoria</p>
+                    <p className="text-slate-500 dark:text-slate-400 font-medium">
                       {selectedEvent.reminder || '15 minuti prima'}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Column 2: Course & Category */}
+              {/* Column 2: Course */}
               <div className="flex flex-col gap-3">
                 <div className="flex items-start gap-3 text-xs">
-                  <BookOpen className="w-4 h-4 text-slate-400 mt-0.5" />
+                  <BookOpen className="w-4 h-4 text-blue-600 mt-0.5" />
                   <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">Corso</p>
-                    <p className="text-slate-500 dark:text-slate-400">
-                      {selectedEvent.courseName || 'Chimica Generale'}
+                    <p className="font-bold text-slate-900 dark:text-white">Corso di Riferimento</p>
+                    <p className="text-slate-700 dark:text-slate-300 font-bold">
+                      {selectedEvent.courseName || 'Corso Generale'}
                     </p>
-                    <p className="text-[10px] text-slate-400">Prof.ssa Gallo</p>
+                    <p className="text-[11px] text-slate-400">
+                      {corsi.find((c) => c.name === selectedEvent.courseName)?.professor || 'Docente Universitario'}
+                    </p>
                   </div>
                 </div>
               </div>
 
               {/* Column 3: Notes */}
               <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-900 dark:text-white">
-                  <FileText className="w-4 h-4 text-slate-400" />
-                  <span>Note</span>
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Note & Argomenti</span>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-700">
-                  {selectedEvent.notes || 'Capitoli 5-6: Reazioni chimiche, stechiometria e resa di reazione.'}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-700">
+                  {selectedEvent.notes || 'Nessuna nota aggiuntiva specificata per questo evento.'}
                 </div>
               </div>
             </div>
@@ -347,12 +710,9 @@ export const CalendarioView: React.FC = () => {
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setSelectedEvent(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="px-5 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
                 Chiudi
-              </button>
-              <button className="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 shadow-md shadow-blue-600/20 transition-colors">
-                Salva modifiche
               </button>
             </div>
           </div>
@@ -360,200 +720,216 @@ export const CalendarioView: React.FC = () => {
       </div>
 
       {/* Right Sidebar Widgets Panel */}
-      <div className="w-full lg:w-80 flex flex-col gap-6">
+      <div className="w-full lg:w-80 flex flex-col gap-6 shrink-0">
         {/* Eventi di Oggi Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Eventi di oggi</h4>
-            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center">
-              3
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-blue-600" />
+              <span>Eventi di oggi</span>
+            </h4>
+            <span className="w-5 h-5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-[11px] font-extrabold text-blue-600 dark:text-blue-400 flex items-center justify-center">
+              {getEventsForExactDate(todayYMD).length}
             </span>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {eventi.slice(0, 3).map((ev) => (
-              <div
-                key={ev.id}
-                className="p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start justify-between gap-2"
-              >
-                <div>
-                  <span className="text-[10px] font-bold text-slate-400">{ev.time.split(' ')[0]}</span>
-                  <h5 className="text-xs font-bold text-slate-900 dark:text-white">{ev.title}</h5>
-                  {ev.room && <p className="text-[10px] text-slate-500 dark:text-slate-400">{ev.room}</p>}
-                </div>
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${getCategoryBadgeClass(
-                    ev.category
-                  )}`}
+          <div className="flex flex-col gap-2.5">
+            {getEventsForExactDate(todayYMD).length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">Nessun evento in programma per oggi.</p>
+            ) : (
+              getEventsForExactDate(todayYMD).map((ev) => (
+                <div
+                  key={ev.id}
+                  onClick={() => setSelectedEvent(ev)}
+                  className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start justify-between gap-2 cursor-pointer hover:border-blue-400 transition-colors"
                 >
-                  {ev.category}
-                </span>
-              </div>
-            ))}
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-extrabold text-blue-600 block">{ev.time}</span>
+                    <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">{ev.title}</h5>
+                    {ev.room && <p className="text-[10px] text-slate-400 truncate">📍 {ev.room}</p>}
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[9px] font-bold border shrink-0 ${getCategoryBadgeClass(
+                      ev.category
+                    )}`}
+                  >
+                    {ev.category}
+                  </span>
+                </div>
+              ))
+            )}
           </div>
         </div>
 
         {/* Prossimi Esami Widget Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Prossimi esami</h4>
-            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span>Prossimi esami</span>
+            </h4>
+            <span className="w-5 h-5 rounded-full bg-purple-50 dark:bg-purple-950/60 text-[11px] font-extrabold text-purple-600 dark:text-purple-400 flex items-center justify-center">
               {esami.filter((e) => e.status === 'upcoming').length}
             </span>
           </div>
 
-          <div className="flex flex-col gap-3">
-            {esami
-              .filter((e) => e.status === 'upcoming')
-              .map((exam) => (
-                <div
-                  key={exam.id}
-                  className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center font-bold text-xs">
-                      ∫(x)
-                    </div>
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-900 dark:text-white">
+          <div className="flex flex-col gap-2.5">
+            {esami.filter((e) => e.status === 'upcoming').length === 0 ? (
+              <p className="text-xs text-slate-400 italic py-2">Nessun esame imminente registrato.</p>
+            ) : (
+              esami
+                .filter((e) => e.status === 'upcoming')
+                .slice(0, 3)
+                .map((exam) => (
+                  <div
+                    key={exam.id}
+                    className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <h5 className="text-xs font-bold text-slate-900 dark:text-white truncate">
                         {exam.courseName}
                       </h5>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                        {exam.date} • {exam.room}
+                      <p className="text-[10px] text-slate-400 truncate">
+                        📅 {exam.date} • {exam.room || 'Aula Magna'}
                       </p>
                     </div>
+                    <span className="px-2 py-1 rounded-xl bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 text-[10px] font-extrabold shrink-0">
+                      {exam.daysRemaining} gg
+                    </span>
                   </div>
-                  <span className="px-2 py-1 rounded-lg bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 text-[10px] font-bold">
-                    {exam.daysRemaining} giorni
-                  </span>
-                </div>
-              ))}
+                ))
+            )}
           </div>
         </div>
 
-        {/* Agenda Timeline Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="font-bold text-sm text-slate-900 dark:text-white">Agenda</h4>
-            <span className="w-5 h-5 rounded-full bg-slate-100 dark:bg-slate-800 text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center justify-center">
-              {eventi.length}
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-3 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-[2px] before:bg-slate-100 dark:before:bg-slate-800">
-            {eventi.length === 0 ? (
-              <div className="pl-6 py-2 text-xs text-slate-500">Nessun evento in agenda.</div>
-            ) : (
-              eventi.slice(0, 5).map((ev, i) => (
-                <div key={ev.id} className="flex items-start gap-3 pl-6 relative">
-                  <span className={`w-2 h-2 rounded-full ${i % 2 === 0 ? 'bg-amber-500' : 'bg-blue-500'} absolute left-2 top-1.5 ring-4 ring-white dark:ring-slate-900`} />
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-400">{ev.date}</span>
-                    <p className="text-xs font-bold text-slate-900 dark:text-white">{ev.time} {ev.title}</p>
-                    <p className="text-[10px] text-slate-500">{ev.room}</p>
-                  </div>
-                </div>
-              ))
-            )}
+        {/* Dynamic Courses Quick Badge Card */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-3">
+          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-emerald-600" />
+            <span>I Tuoi Corsi ({corsi.length})</span>
+          </h4>
+          <div className="flex flex-wrap gap-1.5">
+            {corsi.map((c) => (
+              <span
+                key={c.id}
+                className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold"
+              >
+                {c.name}
+              </span>
+            ))}
           </div>
         </div>
       </div>
 
       {/* New Event Modal Overlay */}
       {isAddingEvent && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-5">
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">Nuovo Evento</h3>
-              <button onClick={() => setIsAddingEvent(false)} className="p-1 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Nuovo Evento in Calendario</h3>
+              </div>
+              <button
+                onClick={() => setIsAddingEvent(false)}
+                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="flex flex-col gap-4 text-xs">
+            <form onSubmit={handleCreateEvent} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Titolo evento</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                  Titolo evento / Argomento lezione *
+                </label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Es. Lezione Analisi Matematica"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Es. Lezione 5: Derivate e Integrali"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Categoria</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Categoria</label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value as EventCategory)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
-                    <option value="Lezione">Lezione</option>
-                    <option value="Esame">Esame</option>
-                    <option value="Scadenza">Scadenza</option>
-                    <option value="Studio">Studio</option>
-                    <option value="Altro">Altro</option>
+                    <option value="Lezione">📚 Lezione (si sincronizza nel corso)</option>
+                    <option value="Esame">🎯 Esame (si sincronizza in esami)</option>
+                    <option value="Scadenza">⏰ Scadenza / Consegna</option>
+                    <option value="Studio">🧠 Sessione Studio</option>
+                    <option value="Altro">📌 Altro</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
                   <input
                     type="date"
+                    required
                     value={newDate}
                     onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   />
                 </div>
               </div>
 
+              {/* Time Slot Picker */}
+              <TimeSlotPicker
+                label="Orario Evento"
+                startTime={newStartTime}
+                endTime={newEndTime}
+                onChange={(s, e) => {
+                  setNewStartTime(s);
+                  setNewEndTime(e);
+                }}
+              />
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Orario</label>
-                  <input
-                    type="text"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    placeholder="11:00 - 12:30"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                  />
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
+                  <select
+                    value={newCourse}
+                    onChange={(e) => setNewCourse(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                  >
+                    {corsi.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="Altro">Altro / Nessuno</option>
+                  </select>
                 </div>
 
                 <div>
-                  <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Aula</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula</label>
                   <input
                     type="text"
                     value={newRoom}
                     onChange={(e) => setNewRoom(e.target.value)}
-                    placeholder="Aula C1"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                    placeholder="Es. Aula Magna / 4B"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
-                <select
-                  value={newCourse}
-                  onChange={(e) => setNewCourse(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
-                >
-                  {corsi.map((c) => (
-                    <option key={c.id} value={c.name}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">Note</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note o compiti</label>
                 <textarea
                   rows={2}
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Dettagli ed argomenti della lezione..."
+                  placeholder="Dettagli, argomenti trattati o note personali..."
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
                 />
               </div>
@@ -562,15 +938,15 @@ export const CalendarioView: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setIsAddingEvent(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-semibold"
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
                 >
-                  Crea Evento
+                  Salva nel Calendario
                 </button>
               </div>
             </form>

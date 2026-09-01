@@ -41,6 +41,8 @@ interface AppContextType {
   updateLezione: (courseId: string, lezioneId: string, updates: Partial<Lezione>) => void;
   deleteLezione: (courseId: string, lezioneId: string) => void;
   esami: Esame[];
+  addEsame: (esame: Omit<Esame, 'id'>) => void;
+  deleteEsame: (examId: string) => void;
   toggleExamTopic: (examId: string, topicId: string) => void;
   compiti: Compito[];
   updateTaskStatus: (taskId: string, status: Compito['status']) => void;
@@ -212,14 +214,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     );
   };
 
-  const addLezioneToCorso = (courseId: string, lezione: Omit<Lezione, 'id'>) => {
+  const addLezioneToCorso = (courseId: string, lezione: Omit<Lezione, 'id'>, syncWithCalendar = true) => {
+    let targetCourseName = '';
+    let targetAula = '';
     setCorsi((prev) =>
       prev.map((c) => {
         if (c.id !== courseId) return c;
+        targetCourseName = c.name;
+        targetAula = c.aulaAbituale || '';
         const currentLezioni = c.lezioni || [];
         const newLezione: Lezione = {
           ...lezione,
-          id: `lez_${Date.now()}`,
+          id: `lez_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
           number: currentLezioni.length + 1,
         };
         const updatedLezioni = [...currentLezioni, newLezione];
@@ -228,6 +234,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
       })
     );
+
+    if (syncWithCalendar) {
+      const newEvent: EventoCalendario = {
+        id: `ev_lez_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        title: lezione.title,
+        category: 'Lezione',
+        date: lezione.date,
+        time: lezione.time,
+        room: lezione.room || targetAula || 'Aula Università',
+        courseName: targetCourseName || 'Corso',
+        notes: lezione.notes || '',
+        reminder: '15 minuti prima',
+      };
+      setEventi((prev) => [...prev, newEvent]);
+    }
   };
 
   const updateLezione = (courseId: string, lezioneId: string, updates: Partial<Lezione>) => {
@@ -258,6 +279,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return { ...c, lezioni: updatedLezioni, notesOrganized: notesPercent };
       })
     );
+  };
+
+  const addEsame = (esame: Omit<Esame, 'id'>, syncWithCalendar = true) => {
+    const newExam: Esame = {
+      ...esame,
+      id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    };
+    setEsami((prev) => [newExam, ...prev]);
+
+    if (syncWithCalendar) {
+      const newEvent: EventoCalendario = {
+        id: `ev_exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        title: `Esame: ${esame.courseName}`,
+        category: 'Esame',
+        date: esame.date,
+        time: esame.time || '09:00',
+        room: esame.room || 'Aula Magna',
+        courseName: esame.courseName,
+        notes: `Docente: ${esame.professor}`,
+        reminder: '1 giorno prima',
+      };
+      setEventi((prev) => [...prev, newEvent]);
+    }
+  };
+
+  const deleteEsame = (examId: string) => {
+    setEsami((prev) => prev.filter((e) => e.id !== examId));
   };
 
   const toggleExamTopic = (examId: string, topicId: string) => {
@@ -293,9 +341,66 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addEvento = (event: Omit<EventoCalendario, 'id'>) => {
     const newEvent: EventoCalendario = {
       ...event,
-      id: `ev_${Date.now()}`,
+      id: `ev_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
     };
     setEventi((prev) => [...prev, newEvent]);
+
+    // Cross-sync: If it's a Lezione, also add it into the matching course
+    if (event.category === 'Lezione') {
+      const matchedCourse = corsi.find(
+        (c) =>
+          (event.courseName && c.name.toLowerCase() === event.courseName.toLowerCase()) ||
+          (event.title && event.title.toLowerCase().includes(c.name.toLowerCase()))
+      );
+      if (matchedCourse) {
+        addLezioneToCorso(
+          matchedCourse.id,
+          {
+            number: (matchedCourse.lezioni || []).length + 1,
+            title: event.title,
+            date: event.date,
+            time: event.time,
+            room: event.room || '',
+            topicsCovered: event.title,
+            notes: event.notes || '',
+            status: 'programmata',
+            hasNotes: false,
+          },
+          false // don't duplicate event on calendar
+        );
+      }
+    }
+
+    // Cross-sync: If it's an Esame, also add it into the Exams list
+    if (event.category === 'Esame') {
+      const matchedCourse = corsi.find(
+        (c) =>
+          (event.courseName && c.name.toLowerCase() === event.courseName.toLowerCase()) ||
+          (event.title && event.title.toLowerCase().includes(c.name.toLowerCase()))
+      );
+      const cleanCourseName = matchedCourse?.name || event.courseName || event.title.replace(/^Esame:\s*/i, '');
+      const daysRem = Math.max(0, Math.ceil((new Date(event.date).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)));
+      const newExamObj: Esame = {
+        id: `exam_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        courseId: matchedCourse?.id || 'gen_course',
+        courseName: cleanCourseName,
+        professor: matchedCourse?.professor || 'Docente Corso',
+        date: event.date,
+        time: event.time || '09:00',
+        room: event.room || 'Aula Magna',
+        registrationStatus: 'In attesa',
+        daysRemaining: daysRem,
+        progress: 0,
+        notesPercentage: 0,
+        notesCompleted: 0,
+        notesTotal: 0,
+        repetitionsDone: 0,
+        repetitionsTotal: 10,
+        topicsToReview: matchedCourse?.topics ? [...matchedCourse.topics] : [],
+        status: 'upcoming',
+      };
+      setEsami((prev) => [newExamObj, ...prev]);
+    }
   };
 
   const deleteEvento = (eventId: string) => {
@@ -339,6 +444,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateLezione,
         deleteLezione,
         esami,
+        addEsame,
+        deleteEsame,
         toggleExamTopic,
         compiti,
         updateTaskStatus,
