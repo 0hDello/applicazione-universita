@@ -1,5 +1,13 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.7] - 2026-09-01
+
+### Modifiche e Risoluzione Bug
+
+- Installazione Aggiornamenti: rimossa la finestra di dialogo retro di Windows (NSIS) a favore di un'installazione silenziosa e istantanea in background.
+- Nuova schermata di aggiornamento minimale in tema scuro con rotellina di caricamento glowing e animazioni fluide prima del riavvio automatico.
+- Miglioramenti di stabilità e rifinitura grafica generale.
+
 ## [v1.0.6] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug

@@ -39,6 +39,7 @@ export const ImpostazioniView: React.FC = () => {
   const [formData, setFormData] = useState({ ...userSettings });
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [appVersion, setAppVersion] = useState('1.0.0');
+  const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
     status: 'idle',
     message: '',
@@ -108,14 +109,17 @@ export const ImpostazioniView: React.FC = () => {
   };
 
   const handleInstallUpdate = () => {
-    try {
-      const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
-      if (electron && electron.ipcRenderer) {
-        electron.ipcRenderer.invoke('quit-and-install');
+    setIsInstallingUpdate(true);
+    setTimeout(() => {
+      try {
+        const electron = typeof window !== 'undefined' && (window as any).require ? (window as any).require('electron') : null;
+        if (electron && electron.ipcRenderer) {
+          electron.ipcRenderer.invoke('quit-and-install');
+        }
+      } catch {
+        // fallback
       }
-    } catch {
-      // fallback
-    }
+    }, 1200);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -613,6 +617,43 @@ export const ImpostazioniView: React.FC = () => {
           </button>
         </div>
       </div>
+      {/* Dark Minimalist Installation Overlay */}
+      {isInstallingUpdate && (
+        <div className="fixed inset-0 bg-slate-950/95 backdrop-blur-2xl flex items-center justify-center z-50 p-6 animate-in fade-in duration-300">
+          <div className="bg-slate-900/90 border border-slate-800 rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center gap-6 relative overflow-hidden">
+            {/* Ambient background glow */}
+            <div className="absolute -top-16 -left-16 w-32 h-32 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-16 -right-16 w-32 h-32 bg-purple-600/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Glowing Modern Spinner Wheel */}
+            <div className="relative w-16 h-16 flex items-center justify-center mt-2">
+              <div className="absolute inset-0 rounded-full border-3 border-blue-500/20 border-t-blue-500 animate-spin" />
+              <div className="w-8 h-8 rounded-full bg-blue-600/20 flex items-center justify-center text-blue-400">
+                <Sparkles className="w-4 h-4 animate-pulse" />
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <h3 className="text-base font-extrabold text-white tracking-tight">
+                Installazione Aggiornamento
+              </h3>
+              <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                Applicazione dei nuovi file e riavvio dell'applicazione in corso...
+              </p>
+            </div>
+
+            {/* Subtle Progress / Status */}
+            <div className="w-full flex flex-col gap-2 pt-2 border-t border-slate-800/80">
+              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full w-full animate-pulse" />
+              </div>
+              <span className="text-[10px] text-slate-500 font-semibold">
+                Non chiudere la finestra, richiederà solo un istante
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };

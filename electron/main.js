@@ -98,8 +98,8 @@ ipcMain.handle('download-update', async () => {
 });
 
 ipcMain.handle('quit-and-install', () => {
-  // isSilent = false, isForceRunAfter = true
-  autoUpdater.quitAndInstall(false, true);
+  // isSilent = true (avoids retro Windows NSIS dialog), isForceRunAfter = true (relaunches app immediately)
+  autoUpdater.quitAndInstall(true, true);
 });
 
 ipcMain.handle('get-app-version', () => {
