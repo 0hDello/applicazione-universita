@@ -965,26 +965,31 @@ export const CalendarioView: React.FC = () => {
         </div>
       )}
 
-      {/* New Event Modal */}
+      {/* New Event Modal - Elegant, Compact & Perfectly Organized */}
       {isAddingEvent && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
                   <Plus className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Nuovo Evento</h3>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Nuovo Evento</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Aggiungi una lezione, un esame o un promemoria</p>
+                </div>
               </div>
               <button
                 onClick={() => setIsAddingEvent(false)}
-                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="flex flex-col gap-3 text-xs">
+            <form onSubmit={handleCreateEvent} className="flex flex-col gap-3.5 text-xs">
+              {/* Row 1: Titolo */}
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Titolo Attività *</label>
                 <input
@@ -992,11 +997,12 @@ export const CalendarioView: React.FC = () => {
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Es. Lezione di Fisica o Studio Gruppo"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                  placeholder="Es. Lezione di Fisica Generale, Studio..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold placeholder:font-normal placeholder:text-slate-400"
                 />
               </div>
 
+              {/* Row 2: Categoria & Corso */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Categoria</label>
@@ -1014,66 +1020,13 @@ export const CalendarioView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
-                  <input
-                    type="date"
-                    required
-                    value={newDate}
-                    onChange={(e) => setNewDate(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
-                  />
-                </div>
-              </div>
-
-              {/* TimeSlotPicker */}
-              <TimeSlotPicker
-                startTime={newStartTime}
-                endTime={newEndTime}
-                onChange={(start, end) => {
-                  setNewStartTime(start);
-                  setNewEndTime(end);
-                }}
-              />
-
-              {/* Weekly Recurrence Selector */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1">
-                  <Repeat className="w-3.5 h-3.5 text-blue-600" />
-                  <span>Ripetizione settimanale</span>
-                </label>
-                <select
-                  value={newRecurrenceWeeks}
-                  onChange={(e) => setNewRecurrenceWeeks(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
-                >
-                  <option value={1}>Solo per questa data (Singolo evento)</option>
-                  <option value={4}>Ripeti ogni settimana per 4 settimane</option>
-                  <option value={8}>Ripeti ogni settimana per 8 settimane</option>
-                  <option value={12}>Ripeti ogni settimana per 12 settimane (Semestre)</option>
-                  <option value={16}>Ripeti ogni settimana per 16 settimane</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
-                  <input
-                    type="text"
-                    value={newRoom}
-                    onChange={(e) => setNewRoom(e.target.value)}
-                    placeholder="Es. Aula A1, Lab 3"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
-                  />
-                </div>
-
-                <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
                   <select
                     value={newCourse}
                     onChange={(e) => setNewCourse(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
-                    <option value="">Nessun corso</option>
+                    <option value="">Nessun corso specifico</option>
                     {corsi.map((c) => (
                       <option key={c.id} value={c.name}>
                         {c.name}
@@ -1083,28 +1036,81 @@ export const CalendarioView: React.FC = () => {
                 </div>
               </div>
 
+              {/* Row 3: Data */}
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note (opzionale)</label>
-                <textarea
-                  rows={2}
-                  value={newNotes}
-                  onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Aggiungi argomenti o dettagli..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold resize-none"
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                <input
+                  type="date"
+                  required
+                  value={newDate}
+                  onChange={(e) => setNewDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              {/* Row 4: Compact TimeSlotPicker */}
+              <TimeSlotPicker
+                startTime={newStartTime}
+                endTime={newEndTime}
+                onChange={(start, end) => {
+                  setNewStartTime(start);
+                  setNewEndTime(end);
+                }}
+              />
+
+              {/* Row 5: Aula & Ripetizione */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede (opzionale)</label>
+                  <input
+                    type="text"
+                    value={newRoom}
+                    onChange={(e) => setNewRoom(e.target.value)}
+                    placeholder="Es. Aula A1, Lab 3..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold placeholder:text-slate-400"
+                  />
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Ripetizione</label>
+                  <select
+                    value={newRecurrenceWeeks}
+                    onChange={(e) => setNewRecurrenceWeeks(Number(e.target.value))}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                  >
+                    <option value={1}>Solo per questa data</option>
+                    <option value={4}>Ogni settimana (4 sett.)</option>
+                    <option value={8}>Ogni settimana (8 sett.)</option>
+                    <option value={12}>Intero Semestre (12 sett.)</option>
+                    <option value={16}>Intero Semestre (16 sett.)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 6: Note opzionali */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note (opzionale)</label>
+                <input
+                  type="text"
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  placeholder="Argomenti trattati o promemoria..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold placeholder:text-slate-400"
+                />
+              </div>
+
+              {/* Footer Actions */}
+              <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
                 <button
                   type="button"
                   onClick={() => setIsAddingEvent(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold transition-colors"
                 >
                   Annulla
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                  className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-600/20 transition-all hover:scale-102"
                 >
                   Crea Evento
                 </button>
@@ -1114,26 +1120,29 @@ export const CalendarioView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Event Modal */}
+      {/* Edit Event Modal - Clean & Elegant */}
       {editingEvent && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center font-bold">
                   <Edit3 className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Modifica Evento</h3>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Modifica Evento</h3>
+                  <p className="text-[11px] text-slate-400 font-medium">Aggiorna le informazioni dell'attività</p>
+                </div>
               </div>
               <button
                 onClick={() => setEditingEvent(null)}
-                className="p-1 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="flex flex-col gap-3 text-xs">
+            <form onSubmit={handleSaveEdit} className="flex flex-col gap-3.5 text-xs">
               <div>
                 <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Titolo Attività *</label>
                 <input
@@ -1141,7 +1150,7 @@ export const CalendarioView: React.FC = () => {
                   required
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                 />
               </div>
 
@@ -1162,15 +1171,31 @@ export const CalendarioView: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
-                  <input
-                    type="date"
-                    required
-                    value={editDate}
-                    onChange={(e) => setEditDate(e.target.value)}
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
+                  <select
+                    value={editCourse}
+                    onChange={(e) => setEditCourse(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
-                  />
+                  >
+                    <option value="">Nessun corso specifico</option>
+                    {corsi.map((c) => (
+                      <option key={c.id} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
+                <input
+                  type="date"
+                  required
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                />
               </div>
 
               {/* TimeSlotPicker */}
@@ -1190,45 +1215,31 @@ export const CalendarioView: React.FC = () => {
                     type="text"
                     value={editRoom}
                     onChange={(e) => setEditRoom(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                    placeholder="Es. Aula A1, Lab 3..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold placeholder:text-slate-400"
                   />
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
-                  <select
-                    value={editCourse}
-                    onChange={(e) => setEditCourse(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
-                  >
-                    <option value="">Nessun corso</option>
-                    {corsi.map((c) => (
-                      <option key={c.id} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note</label>
+                  <input
+                    type="text"
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Argomenti trattati o promemoria..."
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold placeholder:text-slate-400"
+                  />
                 </div>
               </div>
 
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note</label>
-                <textarea
-                  rows={2}
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold resize-none"
-                />
-              </div>
-
-              <div className="flex justify-between items-center pt-2">
+              <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800/80">
                 <button
                   type="button"
                   onClick={() => {
                     deleteEvento(editingEvent.id);
                     setEditingEvent(null);
                   }}
-                  className="flex items-center gap-1 px-3 py-2 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 font-bold"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-bold hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Elimina</span>
@@ -1238,13 +1249,13 @@ export const CalendarioView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setEditingEvent(null)}
-                    className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                    className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold transition-colors"
                   >
                     Annulla
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                    className="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md shadow-blue-600/20 transition-all hover:scale-102"
                   >
                     Salva Modifiche
                   </button>

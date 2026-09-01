@@ -1,5 +1,13 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.9] - 2026-09-01
+
+### Modifiche e Risoluzione Bug
+
+- Menu Aggiungi Evento: redesign completo della finestra modale in stile minimal, compatto ed elegante senza barre di scorrimento verticali.
+- Selettore Orari Compatto: ingressi orari orizzontali puliti con chip rapidi per la durata (+1h, +1.5h, +2h, +3h) e cassetto a comparsa per le fasce universitarie.
+- Form Modifica Evento: aggiornato con il nuovo layout ordinato a griglia, campi allineati e pulsante di eliminazione diretta.
+
 ## [v1.0.8] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug
