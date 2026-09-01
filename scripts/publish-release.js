@@ -20,6 +20,27 @@ function getGitToken() {
   return process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '';
 }
 
+function getReleaseNotesForVersion(version) {
+  try {
+    if (fs.existsSync('CHANGELOG.md')) {
+      const changelog = fs.readFileSync('CHANGELOG.md', 'utf-8');
+      const versionHeader = `## [v${version}]`;
+      const nextHeader = `## [v`;
+      
+      const startIndex = changelog.indexOf(versionHeader);
+      if (startIndex !== -1) {
+        const afterStart = changelog.substring(startIndex);
+        const nextIndex = afterStart.indexOf(nextHeader, versionHeader.length);
+        const section = nextIndex !== -1 ? afterStart.substring(0, nextIndex) : afterStart;
+        return section.trim();
+      }
+    }
+  } catch (e) {
+    console.warn('Could not parse CHANGELOG.md:', e);
+  }
+  return `### Release v${version}\n\n- Miglioramenti generali e correzioni di bug.\n- Supporto Auto-Update integrato.`;
+}
+
 async function uploadAsset(uploadUrl, token, filePath, name, contentType) {
   const fileData = fs.readFileSync(filePath);
   const cleanUploadUrl = uploadUrl.replace('{?name,label}', `?name=${encodeURIComponent(name)}`);
@@ -56,6 +77,7 @@ async function main() {
   const tag = `v${version}`;
   const owner = '0hDello';
   const repo = 'applicazione-universita';
+  const releaseBody = getReleaseNotesForVersion(version);
 
   console.log(`\n=> Creating/fetching GitHub release ${tag} for ${owner}/${repo}...`);
 
@@ -71,8 +93,27 @@ async function main() {
   if (getRes.ok) {
     release = await getRes.json();
     console.log(`Found existing release: ${release.html_url}`);
+    
+    // Update release body and title with full notes
+    console.log(`Updating release description with changelog notes...`);
+    const updateRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases/${release.id}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'Universita-App-Publisher',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: `Versione ${version} — Aggiornamento & Fix`,
+        body: releaseBody,
+      }),
+    });
+    if (updateRes.ok) {
+      release = await updateRes.json();
+      console.log(`✓ Release description updated successfully!`);
+    }
   } else {
-    // Create new release
+    // Create new release with full notes
     const createRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/releases`, {
       method: 'POST',
       headers: {
@@ -83,8 +124,8 @@ async function main() {
       body: JSON.stringify({
         tag_name: tag,
         target_commitish: 'main',
-        name: `Versione ${version}`,
-        body: `Release v${version} di Applicazione Università.\nSupporto Auto-Update integrato.`,
+        name: `Versione ${version} — Aggiornamento & Fix`,
+        body: releaseBody,
         draft: false,
         prerelease: false,
       }),
