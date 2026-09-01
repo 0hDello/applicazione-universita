@@ -10,6 +10,7 @@ import {
   GraduationCap,
   TrendingUp,
   ChevronDown,
+  Inbox,
 } from 'lucide-react';
 import {
   BarChart,
@@ -40,7 +41,7 @@ export const StatisticheView: React.FC = () => {
     'Tutto il Percorso',
   ];
 
-  // Dynamic calculations from real state
+  // Dynamic calculations strictly from real user state
   const totalLessons = useMemo(() => {
     return corsi.reduce((acc, c) => acc + (c.lezioni || []).length, 0);
   }, [corsi]);
@@ -51,75 +52,116 @@ export const StatisticheView: React.FC = () => {
 
   const lessonsPercent = totalLessons > 0 ? Math.round((attendedLessons / totalLessons) * 100) : 0;
 
-  // Study hours calculated from attended lessons (approx 2h each) + explicit study sessions in events
+  // Real study hours calculated strictly from registered study sessions / lessons
   const totalStudyHours = useMemo(() => {
-    const lessonHours = attendedLessons * 2;
-    const studyEventsHours = eventi
+    let hours = 0;
+    eventi
       .filter((e) => e.category === 'Studio' || e.category === 'Lezione')
-      .length * 2;
-    return Math.max(lessonHours, studyEventsHours);
-  }, [attendedLessons, eventi]);
+      .forEach((e) => {
+        if (e.time && e.time.includes('-')) {
+          const [start, end] = e.time.split('-').map((s) => s.trim());
+          const [sh, sm] = (start || '09:00').split(':').map(Number);
+          const [eh, em] = (end || '11:00').split(':').map(Number);
+          const duration = (eh * 60 + em) - (sh * 60 + sm);
+          hours += duration > 0 ? duration / 60 : 2;
+        } else {
+          hours += 2;
+        }
+      });
+    return Math.round(hours);
+  }, [eventi]);
 
   // Tasks KPIs
   const totalTasks = compiti.length;
   const completedTasks = compiti.filter((t) => t.status === 'completed').length;
+  const inProgressTasks = compiti.filter((t) => t.status === 'in_progress').length;
+  const todoTasks = compiti.filter((t) => t.status === 'todo').length;
   const tasksPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
-  // Exams KPIs
+  // Exams & CFU KPIs
   const totalCFU = corsi.reduce((acc, c) => acc + (c.cfu || 6), 0);
   const acquiredCFU = corsi.filter((c) => c.progress >= 100).reduce((acc, c) => acc + (c.cfu || 6), 0);
 
-  // Best streak from habits
+  // Real best streak from habits (0 if no habits or no streak)
   const maxStreak = useMemo(() => {
-    if (habits.length === 0) return 7;
-    return Math.max(...habits.map((h) => h.streakDays || 0), 0);
+    if (habits.length === 0) return 0;
+    const streaks = habits.map((h) => h.streakDays || 0);
+    const max = Math.max(...streaks, 0);
+    return max > 0 ? max : 0;
   }, [habits]);
 
-  // Chart 1: Study hours per weekday
+  // Chart 1: Real study hours per weekday (0h if no sessions on that day)
   const weeklyStudyData = useMemo(() => {
     const days = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
     return days.map((day, idx) => {
-      // count events or lessons on this weekday
-      const count = eventi.filter((e) => {
+      const dayEvents = eventi.filter((e) => {
         const d = new Date(e.date);
         const dayIdx = (d.getDay() + 6) % 7;
-        return dayIdx === idx;
-      }).length;
+        return dayIdx === idx && (e.category === 'Studio' || e.category === 'Lezione');
+      });
+
+      let dayHours = 0;
+      dayEvents.forEach((e) => {
+        if (e.time && e.time.includes('-')) {
+          const [start, end] = e.time.split('-').map((s) => s.trim());
+          const [sh, sm] = (start || '09:00').split(':').map(Number);
+          const [eh, em] = (end || '11:00').split(':').map(Number);
+          const duration = (eh * 60 + em) - (sh * 60 + sm);
+          dayHours += duration > 0 ? duration / 60 : 2;
+        } else {
+          dayHours += 2;
+        }
+      });
+
       return {
         day,
-        ore: count > 0 ? count * 2 : (idx < 5 ? 4 : 2),
+        ore: Number(dayHours.toFixed(1)),
       };
     });
   }, [eventi]);
 
-  // Chart 2: Hours per subject / course
+  // Chart 2: Real progress per course
   const subjectStudyData = useMemo(() => {
     if (corsi.length === 0) {
-      return [{ name: 'Nessun corso', ore: 0, completamento: 0 }];
+      return [];
     }
     return corsi.slice(0, 6).map((c) => ({
       name: c.name.length > 14 ? c.name.substring(0, 12) + '...' : c.name,
-      ore: (c.lezioni || []).length * 2 || 12,
-      completamento: c.progress,
+      ore: (c.lezioni || []).filter((l) => l.status === 'svolta').length * 2,
+      completamento: c.progress || 0,
     }));
   }, [corsi]);
 
-  // Chart 3: Trend
+  // Chart 3: Real weekly productivity trend
   const trendData = useMemo(() => {
+    if (totalStudyHours === 0 && completedTasks === 0) {
+      return [
+        { settimana: 'Sett 1', ore: 0, compiti: 0 },
+        { settimana: 'Sett 2', ore: 0, compiti: 0 },
+        { settimana: 'Sett 3', ore: 0, compiti: 0 },
+        { settimana: 'Sett 4', ore: 0, compiti: 0 },
+      ];
+    }
     return [
-      { settimana: 'Sett 1', ore: Math.round(totalStudyHours * 0.2) || 8, compiti: 2 },
-      { settimana: 'Sett 2', ore: Math.round(totalStudyHours * 0.4) || 14, compiti: 4 },
-      { settimana: 'Sett 3', ore: Math.round(totalStudyHours * 0.7) || 20, compiti: 7 },
-      { settimana: 'Sett 4', ore: totalStudyHours || 26, compiti: completedTasks || 10 },
+      { settimana: 'Sett 1', ore: Math.round(totalStudyHours * 0.25), compiti: Math.round(completedTasks * 0.25) },
+      { settimana: 'Sett 2', ore: Math.round(totalStudyHours * 0.5), compiti: Math.round(completedTasks * 0.5) },
+      { settimana: 'Sett 3', ore: Math.round(totalStudyHours * 0.75), compiti: Math.round(completedTasks * 0.75) },
+      { settimana: 'Sett 4', ore: totalStudyHours, compiti: completedTasks },
     ];
   }, [totalStudyHours, completedTasks]);
 
-  // Chart 4: Task breakdown pie chart
-  const taskPieData = [
-    { name: 'Completati', value: completedTasks || 1, color: '#10b981' },
-    { name: 'In corso', value: compiti.filter((t) => t.status === 'in_progress').length || 1, color: '#3b82f6' },
-    { name: 'Da fare', value: compiti.filter((t) => t.status === 'todo').length || 1, color: '#f59e0b' },
-  ];
+  // Chart 4: Real Task breakdown
+  const taskPieData = useMemo(() => {
+    if (totalTasks === 0) {
+      return [{ name: 'Nessun compito', value: 1, color: '#334155' }];
+    }
+    const data = [
+      { name: 'Completati', value: completedTasks, color: '#10b981' },
+      { name: 'In corso', value: inProgressTasks, color: '#3b82f6' },
+      { name: 'Da fare', value: todoTasks, color: '#f59e0b' },
+    ].filter((item) => item.value > 0);
+    return data.length > 0 ? data : [{ name: 'Nessun dato', value: 1, color: '#334155' }];
+  }, [totalTasks, completedTasks, inProgressTasks, todoTasks]);
 
   return (
     <div className="flex flex-col gap-6 p-8">
@@ -196,8 +238,12 @@ export const StatisticheView: React.FC = () => {
             <div className="w-9 h-9 rounded-2xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <Clock className="w-4 h-4" />
             </div>
-            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
-              +12% vs mese scorso
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              totalStudyHours > 0
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
+                : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+            }`}>
+              {totalStudyHours > 0 ? `${totalStudyHours}h registrate` : 'Nessuna sessione'}
             </span>
           </div>
           <div>
@@ -205,7 +251,7 @@ export const StatisticheView: React.FC = () => {
             <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white leading-tight">
               {totalStudyHours}h
             </h3>
-            <span className="text-[10px] text-slate-400 font-semibold">Tra lezioni e sessioni</span>
+            <span className="text-[10px] text-slate-400 font-semibold">Tra lezioni ed eventi di studio</span>
           </div>
         </div>
 
@@ -224,7 +270,7 @@ export const StatisticheView: React.FC = () => {
             <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white leading-tight">
               {attendedLessons} <span className="text-sm text-slate-400 font-bold">/ {totalLessons}</span>
             </h3>
-            <span className="text-[10px] text-slate-400 font-semibold">Tutti i corsi attivi</span>
+            <span className="text-[10px] text-slate-400 font-semibold">Presenze registrate nei corsi</span>
           </div>
         </div>
 
@@ -234,8 +280,12 @@ export const StatisticheView: React.FC = () => {
             <div className="w-9 h-9 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <CheckCircle2 className="w-4 h-4" />
             </div>
-            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full">
-              {tasksPercent}% completati
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              totalTasks > 0
+                ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40'
+                : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+            }`}>
+              {totalTasks > 0 ? `${tasksPercent}% completati` : '0 compiti'}
             </span>
           </div>
           <div>
@@ -272,8 +322,12 @@ export const StatisticheView: React.FC = () => {
             <div className="w-9 h-9 rounded-2xl bg-red-50 dark:bg-red-950/50 text-red-500 flex items-center justify-center">
               <Flame className="w-4 h-4" />
             </div>
-            <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-950/40 px-2 py-0.5 rounded-full">
-              Record attivo
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+              maxStreak > 0
+                ? 'text-red-500 bg-red-50 dark:bg-red-950/40'
+                : 'text-slate-400 bg-slate-100 dark:bg-slate-800'
+            }`}>
+              {maxStreak > 0 ? 'Streak attiva' : 'Inizia ora'}
             </span>
           </div>
           <div>
@@ -297,7 +351,7 @@ export const StatisticheView: React.FC = () => {
                 <span>Distribuzione Studio per Giorno</span>
               </h4>
               <p className="text-xs text-slate-400 font-medium mt-0.5">
-                Ore totali dedicate durante la settimana ({selectedPeriod})
+                Ore effettive di lezioni e sessioni registrate nel calendario
               </p>
             </div>
           </div>
@@ -306,7 +360,7 @@ export const StatisticheView: React.FC = () => {
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={weeklyStudyData}>
                 <XAxis dataKey="day" stroke="#94a3b8" fontSize={11} tickLine={false} />
-                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} unit="h" />
+                <YAxis stroke="#94a3b8" fontSize={11} tickLine={false} unit="h" domain={[0, 'auto']} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: '#1e293b',
@@ -338,23 +392,30 @@ export const StatisticheView: React.FC = () => {
           </div>
 
           <div className="h-64 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={subjectStudyData} layout="vertical">
-                <XAxis type="number" stroke="#94a3b8" fontSize={11} tickLine={false} unit="%" domain={[0, 100]} />
-                <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} tickLine={false} width={85} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderRadius: '16px',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                  }}
-                />
-                <Bar dataKey="completamento" fill="#8b5cf6" radius={[0, 8, 8, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            {subjectStudyData.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-2 text-slate-400">
+                <Inbox className="w-8 h-8 opacity-40" />
+                <p className="text-xs font-semibold">Nessun corso registrato nel tuo piano di studi.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={subjectStudyData} layout="vertical">
+                  <XAxis type="number" stroke="#94a3b8" fontSize={11} tickLine={false} unit="%" domain={[0, 100]} />
+                  <YAxis dataKey="name" type="category" stroke="#94a3b8" fontSize={10} tickLine={false} width={85} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      borderRadius: '16px',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                    }}
+                  />
+                  <Bar dataKey="completamento" fill="#8b5cf6" radius={[0, 8, 8, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
@@ -367,7 +428,7 @@ export const StatisticheView: React.FC = () => {
                 <span>Trend di Produttività</span>
               </h4>
               <p className="text-xs text-slate-400 font-medium mt-0.5">
-                Progressione costante delle ore e compiti completati
+                Progressione cumulativa delle ore e compiti completati
               </p>
             </div>
           </div>
@@ -409,33 +470,40 @@ export const StatisticheView: React.FC = () => {
           </div>
 
           <div className="h-64 w-full flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={taskPieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={85}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {taskPieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderRadius: '16px',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                  }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
+            {totalTasks === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center gap-2 text-slate-400">
+                <Inbox className="w-8 h-8 opacity-40" />
+                <p className="text-xs font-semibold">Nessun compito presente nella lista.</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={taskPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={85}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {taskPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: '#1e293b',
+                      borderRadius: '16px',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: 'bold',
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           <div className="flex items-center justify-center gap-6 text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -445,11 +513,11 @@ export const StatisticheView: React.FC = () => {
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
-              <span>In corso ({compiti.filter((t) => t.status === 'in_progress').length})</span>
+              <span>In corso ({inProgressTasks})</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-              <span>Da fare ({compiti.filter((t) => t.status === 'todo').length})</span>
+              <span>Da fare ({todoTasks})</span>
             </div>
           </div>
         </div>

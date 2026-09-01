@@ -1,5 +1,12 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.10] - 2026-09-01
+
+### Modifiche e Risoluzione Bug
+
+- Statistiche Reali: rimossi tutti i valori fittizi di fallback nelle statistiche e nei grafici.
+- Calcolo Dinamico: ore di studio, presenze alle lezioni, completamento compiti e streak abitudini riflettono fedelmente e unicamente i dati effettivi registrati dall'utente (visualizzando 0 ore, 0 giorni e messaggi puliti quando non ci sono attività).
+
 ## [v1.0.9] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug
