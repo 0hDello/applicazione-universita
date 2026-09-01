@@ -1,5 +1,13 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.8] - 2026-09-01
+
+### Modifiche e Risoluzione Bug
+
+- Calendario: riorganizzata la barra superiore per evitare sfasamenti visivi con allineamento pulito e ordinato di comandi, viste e navigazione.
+- Eliminazione Eventi Calendario: aggiunta eliminazione diretta con icona cestino al passaggio del mouse sulle pillole degli eventi e modal centrale dedicata con tasto Elimina Evento.
+- Temi e Colori: corretto il collegamento delle variabili CSS di Tailwind (@theme) per rendere immediatamente reattivo il cambio colore accento (blu, viola, verde smeraldo, arancio, rosa, ciano, ambra) su pulsanti, badge e barre laterali.
+
 ## [v1.0.7] - 2026-09-01
 
 ### Modifiche e Risoluzione Bug

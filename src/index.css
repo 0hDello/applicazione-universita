@@ -2,6 +2,12 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-blue-600: var(--color-primary);
+  --color-blue-700: var(--color-primary-hover);
+  --color-blue-500: var(--color-primary);
+}
+
 :root {
   --color-primary: #2563eb;
   --color-primary-hover: #1d4ed8;
@@ -22,15 +28,15 @@
 }
 
 .bg-primary {
-  background-color: var(--color-primary);
+  background-color: var(--color-primary) !important;
 }
 
 .text-primary {
-  color: var(--color-primary);
+  color: var(--color-primary) !important;
 }
 
 .border-primary {
-  border-color: var(--color-primary);
+  border-color: var(--color-primary) !important;
 }
 
 #root {

@@ -168,9 +168,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Apply accent color to CSS variables
   useEffect(() => {
-    if (userSettings.accentColor) {
-      document.documentElement.style.setProperty('--color-primary', userSettings.accentColor);
+    const color = userSettings.accentColor || '#2563eb';
+    const cleanHex = color.replace('#', '');
+    let rgb = '37, 99, 235';
+    if (cleanHex.length === 6) {
+      const r = parseInt(cleanHex.substring(0, 2), 16);
+      const g = parseInt(cleanHex.substring(2, 4), 16);
+      const b = parseInt(cleanHex.substring(4, 6), 16);
+      rgb = `${r}, ${g}, ${b}`;
     }
+    document.documentElement.style.setProperty('--color-primary', color);
+    document.documentElement.style.setProperty('--color-primary-hover', color);
+    document.documentElement.style.setProperty('--color-primary-rgb', rgb);
   }, [userSettings.accentColor]);
 
   // Notifications State & Generator

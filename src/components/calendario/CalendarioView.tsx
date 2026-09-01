@@ -11,7 +11,6 @@ import {
   Clock,
   MapPin,
   BookOpen,
-  Bell,
   Trash2,
   X,
   FileText,
@@ -39,7 +38,7 @@ export const CalendarioView: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'Mese' | 'Settimana' | 'Giorno'>('Mese');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
-  const [selectedEvent, setSelectedEvent] = useState<EventoCalendario | null>(eventi[0] || null);
+  const [viewingModalEvent, setViewingModalEvent] = useState<EventoCalendario | null>(null);
 
   // New Event Form State
   const [isAddingEvent, setIsAddingEvent] = useState(false);
@@ -211,8 +210,8 @@ export const CalendarioView: React.FC = () => {
     };
 
     updateEvento(editingEvent.id, updatedData);
-    if (selectedEvent && selectedEvent.id === editingEvent.id) {
-      setSelectedEvent({ ...selectedEvent, ...updatedData } as EventoCalendario);
+    if (viewingModalEvent && viewingModalEvent.id === editingEvent.id) {
+      setViewingModalEvent({ ...viewingModalEvent, ...updatedData } as EventoCalendario);
     }
     setEditingEvent(null);
   };
@@ -275,25 +274,51 @@ export const CalendarioView: React.FC = () => {
     <div className="flex flex-col lg:flex-row gap-6 p-8">
       {/* Main Calendar View Area */}
       <div className="flex-1 flex flex-col gap-6 min-w-0">
-        {/* Calendar Header Controls */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between flex-wrap gap-4">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900">
-                <CalendarIcon className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                  {activeTab === 'Mese' && `${monthNames[currentMonth]} ${currentYear}`}
-                  {activeTab === 'Settimana' && getWeekRangeTitle()}
-                  {activeTab === 'Giorno' && `${currentDay} ${monthNames[currentMonth]} ${currentYear}`}
-                </h3>
-                <p className="text-[11px] font-semibold text-slate-400">
-                  {activeTab === 'Mese' && 'Vista Mensile (Trascina eventi per spostarli)'}
-                  {activeTab === 'Settimana' && 'Orario Settimanale Interattivo'}
-                  {activeTab === 'Giorno' && weekDaysFull[(currentDate.getDay() + 6) % 7]}
-                </p>
-              </div>
+        {/* Calendar Header Controls - Clean & Perfectly Aligned */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between gap-4 flex-wrap">
+          {/* Title & Subtitle */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 shrink-0">
+              <CalendarIcon className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white leading-tight">
+                {activeTab === 'Mese' && `${monthNames[currentMonth]} ${currentYear}`}
+                {activeTab === 'Settimana' && getWeekRangeTitle()}
+                {activeTab === 'Giorno' && `${currentDay} ${monthNames[currentMonth]} ${currentYear}`}
+              </h3>
+              <p className="text-[11px] font-semibold text-slate-400">
+                {activeTab === 'Mese' && 'Vista Mensile (Trascina eventi per spostarli)'}
+                {activeTab === 'Settimana' && 'Orario Settimanale'}
+                {activeTab === 'Giorno' && weekDaysFull[(currentDate.getDay() + 6) % 7]}
+              </p>
+            </div>
+          </div>
+
+          {/* Right Controls: Navigation + Tab Switcher + Add Button */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Prev / Today / Next */}
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs">
+              <button
+                onClick={handlePrev}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                title="Precedente"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={handleToday}
+                className="px-3 py-1 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+              >
+                Oggi
+              </button>
+              <button
+                onClick={handleNext}
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                title="Successivo"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
             {/* View Switcher Tabs */}
@@ -312,39 +337,11 @@ export const CalendarioView: React.FC = () => {
                 </button>
               ))}
             </div>
-          </div>
 
-          <div className="flex items-center gap-3">
+            {/* Main Add Button */}
             <button
-              onClick={handleToday}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
-            >
-              Oggi
-            </button>
-
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handlePrev}
-                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
-                title="Precedente"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <button
-                onClick={handleNext}
-                className="w-9 h-9 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-2xs"
-                title="Successivo"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            <button
-              onClick={() => {
-                setNewDate(formatDateYMD(currentDate));
-                setIsAddingEvent(true);
-              }}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all hover:scale-102"
+              onClick={() => setIsAddingEvent(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all hover:scale-102"
             >
               <Plus className="w-4 h-4" />
               <span>Aggiungi evento</span>
@@ -355,12 +352,12 @@ export const CalendarioView: React.FC = () => {
         {/* 1. MESE VIEW */}
         {activeTab === 'Mese' && (
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xs overflow-hidden">
-            {/* Weekday Header */}
-            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/40">
+            {/* Weekday labels */}
+            <div className="grid grid-cols-7 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
               {weekDays.map((day) => (
                 <div
                   key={day}
-                  className="py-3 text-center text-xs font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider"
+                  className="py-3 text-center text-[11px] font-extrabold text-slate-400 tracking-wider"
                 >
                   {day}
                 </div>
@@ -428,10 +425,10 @@ export const CalendarioView: React.FC = () => {
                       </button>
                     </div>
 
-                    {/* Day Events Pills with Drag & Drop */}
+                    {/* Day Events Pills with Direct Trash & Click-to-open Modal */}
                     <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
                       {dayEvents.map((ev) => (
-                        <button
+                        <div
                           key={ev.id}
                           draggable
                           onDragStart={(e) => {
@@ -440,18 +437,32 @@ export const CalendarioView: React.FC = () => {
                           }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedEvent(ev);
+                            setViewingModalEvent(ev);
                           }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left truncate border transition-transform hover:scale-98 shadow-2xs cursor-grab active:cursor-grabbing ${getCategoryBadgeClass(
+                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left border transition-all hover:scale-98 shadow-2xs cursor-pointer group/ev flex items-center justify-between gap-1 ${getCategoryBadgeClass(
                             ev.category
                           )}`}
                         >
-                          <div className="truncate font-extrabold">{ev.title}</div>
-                          <div className="text-[9px] opacity-80 truncate flex items-center gap-1">
-                            <span>{ev.time.split(' ')[0]}</span>
-                            {ev.room && <span>• {ev.room}</span>}
+                          <div className="min-w-0 flex-1 truncate">
+                            <div className="truncate font-extrabold">{ev.title}</div>
+                            <div className="text-[9px] opacity-80 truncate flex items-center gap-1">
+                              <span>{ev.time.split(' ')[0]}</span>
+                              {ev.room && <span>• {ev.room}</span>}
+                            </div>
                           </div>
-                        </button>
+
+                          {/* Quick 1-Click Delete on Hover */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteEvento(ev.id);
+                            }}
+                            className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
+                            title="Elimina evento"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -489,7 +500,10 @@ export const CalendarioView: React.FC = () => {
                   <span>Studio</span>
                 </div>
               </div>
-              <span className="text-[11px] text-slate-400">Trascina gli eventi per spostarli • Doppio click per aggiungere</span>
+
+              <div className="text-[11px] text-slate-400 italic">
+                💡 Clicca su un evento per dettagli o modifiche, oppure trascinalo per cambiare data.
+              </div>
             </div>
           </div>
         )}
@@ -531,7 +545,7 @@ export const CalendarioView: React.FC = () => {
               })}
             </div>
 
-            {/* Week Timetable Matrix with Drag & Drop */}
+            {/* Week Timetable Matrix with Drag & Drop & Direct Delete */}
             <div className="overflow-y-auto max-h-[580px] divide-y divide-slate-100 dark:divide-slate-800/70">
               {hoursList.map((hour) => {
                 const hourNum = parseInt(hour.split(':')[0]);
@@ -568,7 +582,7 @@ export const CalendarioView: React.FC = () => {
                           className="p-1 border-r border-slate-100 dark:border-slate-800/50 hover:bg-blue-50/20 dark:hover:bg-slate-800/30 transition-colors flex flex-col gap-1 cursor-pointer"
                         >
                           {dayEvents.map((ev) => (
-                            <button
+                            <div
                               key={ev.id}
                               draggable
                               onDragStart={(e) => {
@@ -577,16 +591,29 @@ export const CalendarioView: React.FC = () => {
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedEvent(ev);
+                                setViewingModalEvent(ev);
                               }}
-                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 cursor-grab active:cursor-grabbing ${getCategoryBadgeClass(
+                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 cursor-pointer group/ev flex items-start justify-between gap-1 ${getCategoryBadgeClass(
                                 ev.category
                               )}`}
                             >
-                              <div className="font-extrabold truncate">{ev.title}</div>
-                              <div className="text-[9px] opacity-80 truncate">{ev.time}</div>
-                              {ev.room && <div className="text-[9px] opacity-75 truncate font-normal">📍 {ev.room}</div>}
-                            </button>
+                              <div className="min-w-0 flex-1">
+                                <div className="font-extrabold truncate">{ev.title}</div>
+                                <div className="text-[9px] opacity-80 truncate">{ev.time}</div>
+                                {ev.room && <div className="text-[9px] opacity-75 truncate font-normal">📍 {ev.room}</div>}
+                              </div>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteEvento(ev.id);
+                                }}
+                                className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
+                                title="Elimina evento"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
                           ))}
                         </div>
                       );
@@ -644,7 +671,7 @@ export const CalendarioView: React.FC = () => {
                 getEventsForExactDate(selectedDateYMD).map((ev) => (
                   <div
                     key={ev.id}
-                    onClick={() => setSelectedEvent(ev)}
+                    onClick={() => setViewingModalEvent(ev)}
                     className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4 cursor-pointer hover:border-blue-400 transition-all"
                   >
                     <div className="flex items-start gap-4">
@@ -734,138 +761,6 @@ export const CalendarioView: React.FC = () => {
             </div>
           </div>
         )}
-
-        {/* Selected Event Details Modal/Card */}
-        {selectedEvent && (
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col gap-5">
-            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-              <div className="flex items-center gap-3">
-                <span className={`w-3.5 h-3.5 rounded-full ${getDotColor(selectedEvent.category)}`} />
-                <h4 className="text-lg font-extrabold text-slate-900 dark:text-white">
-                  {selectedEvent.title}
-                </h4>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getCategoryBadgeClass(
-                    selectedEvent.category
-                  )}`}
-                >
-                  {selectedEvent.category}
-                </span>
-                {selectedEvent.recurrence && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800/60 flex items-center gap-1">
-                    <Repeat className="w-3 h-3" />
-                    <span>{selectedEvent.recurrence}</span>
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => openEditModal(selectedEvent)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 text-xs font-bold hover:bg-blue-100 transition-colors"
-                  title="Modifica evento"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Modifica</span>
-                </button>
-                <button
-                  onClick={() => duplicateEvento(selectedEvent.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-200 transition-colors"
-                  title="Duplica evento"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>Duplica</span>
-                </button>
-                <button
-                  onClick={() => {
-                    deleteEvento(selectedEvent.id);
-                    setSelectedEvent(null);
-                  }}
-                  className="p-2 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
-                  title="Elimina evento"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => setSelectedEvent(null)}
-                  className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Column 1: Date, Time, Room */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-start gap-3 text-xs">
-                  <Clock className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Data e ora</p>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">
-                      {selectedEvent.date} • {selectedEvent.time}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 text-xs">
-                  <MapPin className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Aula / Sede</p>
-                    {selectedEvent.room ? (
-                      <button
-                        onClick={() => openGoogleMaps(selectedEvent.room, userSettings.university)}
-                        className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1"
-                        title="Apri su Google Maps"
-                      >
-                        <span>{selectedEvent.room}</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </button>
-                    ) : (
-                      <p className="text-slate-400">Non specificata</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-3 text-xs">
-                  <Bell className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Promemoria</p>
-                    <p className="text-slate-500 dark:text-slate-400 font-medium">
-                      {selectedEvent.reminder || '15 minuti prima'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 2: Course */}
-              <div className="flex flex-col gap-3">
-                <div className="flex items-start gap-3 text-xs">
-                  <BookOpen className="w-4 h-4 text-blue-600 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-slate-900 dark:text-white">Corso di Riferimento</p>
-                    <p className="text-slate-700 dark:text-slate-300 font-bold">
-                      {selectedEvent.courseName || 'Corso Generale'}
-                    </p>
-                    <p className="text-[11px] text-slate-400">
-                      {corsi.find((c) => c.name === selectedEvent.courseName)?.professor || 'Docente Universitario'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Column 3: Notes */}
-              <div className="flex flex-col gap-2">
-                <div className="flex items-center gap-2 text-xs font-bold text-slate-900 dark:text-white">
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span>Note & Argomenti</span>
-                </div>
-                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-300 leading-relaxed border border-slate-100 dark:border-slate-700">
-                  {selectedEvent.notes || 'Nessuna nota aggiuntiva specificata per questo evento.'}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Right Sidebar Widgets Panel */}
@@ -889,7 +784,7 @@ export const CalendarioView: React.FC = () => {
               getEventsForExactDate(todayYMD).map((ev) => (
                 <div
                   key={ev.id}
-                  onClick={() => setSelectedEvent(ev)}
+                  onClick={() => setViewingModalEvent(ev)}
                   className="p-3 rounded-2xl bg-slate-50/80 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex items-start justify-between gap-2 cursor-pointer hover:border-blue-400 transition-colors"
                 >
                   <div className="min-w-0">
@@ -950,36 +845,136 @@ export const CalendarioView: React.FC = () => {
             )}
           </div>
         </div>
-
-        {/* Dynamic Courses Quick Badge Card */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex flex-col gap-3">
-          <h4 className="font-extrabold text-sm text-slate-900 dark:text-white flex items-center gap-2">
-            <BookOpen className="w-4 h-4 text-emerald-600" />
-            <span>I Tuoi Corsi ({corsi.length})</span>
-          </h4>
-          <div className="flex flex-wrap gap-1.5">
-            {corsi.map((c) => (
-              <span
-                key={c.id}
-                className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-[11px] font-bold"
-              >
-                {c.name}
-              </span>
-            ))}
-          </div>
-        </div>
       </div>
 
-      {/* New Event Modal Overlay */}
+      {/* Floating Center Modal: Viewing Event Details with Edit / Duplicate / Delete */}
+      {viewingModalEvent && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-5 animate-in fade-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold border ${getCategoryBadgeClass(viewingModalEvent.category)}`}>
+                  {viewingModalEvent.category}
+                </span>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                  {viewingModalEvent.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setViewingModalEvent(null)}
+                className="p-1.5 rounded-xl text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Details Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                <Clock className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Data e Orario</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-medium">
+                    {viewingModalEvent.date} • {viewingModalEvent.time}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60">
+                <MapPin className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <p className="font-bold text-slate-900 dark:text-white">Aula / Sede</p>
+                  {viewingModalEvent.room ? (
+                    <button
+                      onClick={() => openGoogleMaps(viewingModalEvent.room, userSettings.university)}
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline flex items-center gap-1 truncate"
+                      title="Apri indicazioni su Google Maps"
+                    >
+                      <span className="truncate">{viewingModalEvent.room}</span>
+                      <ExternalLink className="w-3 h-3 shrink-0" />
+                    </button>
+                  ) : (
+                    <p className="text-slate-400">Non specificata</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2">
+                <BookOpen className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-white">Corso</p>
+                  <p className="text-slate-700 dark:text-slate-300 font-bold">
+                    {viewingModalEvent.courseName || 'Corso Generale'}
+                  </p>
+                </div>
+              </div>
+
+              {viewingModalEvent.notes && (
+                <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 sm:col-span-2">
+                  <FileText className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-slate-900 dark:text-white">Note</p>
+                    <p className="text-slate-600 dark:text-slate-300 font-medium">
+                      {viewingModalEvent.notes}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions Footer with prominent Delete */}
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  deleteEvento(viewingModalEvent.id);
+                  setViewingModalEvent(null);
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-bold text-xs hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>Elimina Evento</span>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    duplicateEvento(viewingModalEvent.id);
+                    setViewingModalEvent(null);
+                  }}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Duplica</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const ev = viewingModalEvent;
+                    setViewingModalEvent(null);
+                    openEditModal(ev);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md hover:bg-blue-700 transition-colors"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Modifica</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Event Modal */}
       {isAddingEvent && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
                   <Plus className="w-4 h-4" />
                 </div>
-                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Nuovo Evento in Calendario</h3>
+                <h3 className="text-base font-extrabold text-slate-900 dark:text-white">Nuovo Evento</h3>
               </div>
               <button
                 onClick={() => setIsAddingEvent(false)}
@@ -991,15 +986,13 @@ export const CalendarioView: React.FC = () => {
 
             <form onSubmit={handleCreateEvent} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Titolo evento / Argomento lezione *
-                </label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Titolo Attività *</label>
                 <input
                   type="text"
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Es. Lezione 5: Derivate e Integrali"
+                  placeholder="Es. Lezione di Fisica o Studio Gruppo"
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
                 />
               </div>
@@ -1012,16 +1005,16 @@ export const CalendarioView: React.FC = () => {
                     onChange={(e) => setNewCategory(e.target.value as EventCategory)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
-                    <option value="Lezione">📚 Lezione (si sincronizza nel corso)</option>
-                    <option value="Esame">🎯 Esame (si sincronizza in esami)</option>
-                    <option value="Scadenza">⏰ Scadenza / Consegna</option>
-                    <option value="Studio">🧠 Sessione Studio</option>
+                    <option value="Lezione">📚 Lezione</option>
+                    <option value="Esame">🎓 Esame</option>
+                    <option value="Studio">📖 Studio</option>
+                    <option value="Scadenza">⏰ Scadenza</option>
                     <option value="Altro">📌 Altro</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data Inizio</label>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Data</label>
                   <input
                     type="date"
                     required
@@ -1032,18 +1025,47 @@ export const CalendarioView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Time Slot Picker */}
+              {/* TimeSlotPicker */}
               <TimeSlotPicker
-                label="Orario Evento"
                 startTime={newStartTime}
                 endTime={newEndTime}
-                onChange={(s, e) => {
-                  setNewStartTime(s);
-                  setNewEndTime(e);
+                onChange={(start, end) => {
+                  setNewStartTime(start);
+                  setNewEndTime(end);
                 }}
               />
 
+              {/* Weekly Recurrence Selector */}
+              <div>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1">
+                  <Repeat className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Ripetizione settimanale</span>
+                </label>
+                <select
+                  value={newRecurrenceWeeks}
+                  onChange={(e) => setNewRecurrenceWeeks(Number(e.target.value))}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
+                >
+                  <option value={1}>Solo per questa data (Singolo evento)</option>
+                  <option value={4}>Ripeti ogni settimana per 4 settimane</option>
+                  <option value={8}>Ripeti ogni settimana per 8 settimane</option>
+                  <option value={12}>Ripeti ogni settimana per 12 settimane (Semestre)</option>
+                  <option value={16}>Ripeti ogni settimana per 16 settimane</option>
+                </select>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
+                  <input
+                    type="text"
+                    value={newRoom}
+                    onChange={(e) => setNewRoom(e.target.value)}
+                    placeholder="Es. Aula A1, Lab 3"
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                  />
+                </div>
+
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
                   <select
@@ -1051,54 +1073,24 @@ export const CalendarioView: React.FC = () => {
                     onChange={(e) => setNewCourse(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
+                    <option value="">Nessun corso</option>
                     {corsi.map((c) => (
                       <option key={c.id} value={c.name}>
                         {c.name}
                       </option>
                     ))}
-                    <option value="Altro">Altro / Nessuno</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
-                  <input
-                    type="text"
-                    value={newRoom}
-                    onChange={(e) => setNewRoom(e.target.value)}
-                    placeholder="Es. Aula Magna / 4B"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
-                  />
-                </div>
-              </div>
-
-              {/* Recurrence Selector */}
-              <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1.5">
-                  <Repeat className="w-3.5 h-3.5 text-purple-600" />
-                  <span>Ricorrenza settimanale (Crea orario automatico)</span>
-                </label>
-                <select
-                  value={newRecurrenceWeeks}
-                  onChange={(e) => setNewRecurrenceWeeks(Number(e.target.value))}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
-                >
-                  <option value={1}>Nessuna (Singolo evento)</option>
-                  <option value={4}>Ripeti per 4 settimane</option>
-                  <option value={8}>Ripeti per 8 settimane (2 mesi)</option>
-                  <option value={12}>Ripeti per 12 settimane (3 mesi)</option>
-                  <option value={16}>Intero Semestre (16 settimane)</option>
-                </select>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note o compiti</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note (opzionale)</label>
                 <textarea
                   rows={2}
                   value={newNotes}
                   onChange={(e) => setNewNotes(e.target.value)}
-                  placeholder="Dettagli, argomenti trattati o note personali..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  placeholder="Aggiungi argomenti o dettagli..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold resize-none"
                 />
               </div>
 
@@ -1114,7 +1106,7 @@ export const CalendarioView: React.FC = () => {
                   type="submit"
                   className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
                 >
-                  {newRecurrenceWeeks > 1 ? `Salva ${newRecurrenceWeeks} Eventi Ricorrenti` : 'Salva nel Calendario'}
+                  Crea Evento
                 </button>
               </div>
             </form>
@@ -1122,10 +1114,10 @@ export const CalendarioView: React.FC = () => {
         </div>
       )}
 
-      {/* Edit Event Modal Overlay */}
+      {/* Edit Event Modal */}
       {editingEvent && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-lg w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-md w-full border border-slate-100 dark:border-slate-800 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 flex items-center justify-center font-bold">
@@ -1143,9 +1135,7 @@ export const CalendarioView: React.FC = () => {
 
             <form onSubmit={handleSaveEdit} className="flex flex-col gap-3 text-xs">
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                  Titolo evento *
-                </label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Titolo Attività *</label>
                 <input
                   type="text"
                   required
@@ -1164,9 +1154,9 @@ export const CalendarioView: React.FC = () => {
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
                     <option value="Lezione">📚 Lezione</option>
-                    <option value="Esame">🎯 Esame</option>
+                    <option value="Esame">🎓 Esame</option>
+                    <option value="Studio">📖 Studio</option>
                     <option value="Scadenza">⏰ Scadenza</option>
-                    <option value="Studio">🧠 Sessione Studio</option>
                     <option value="Altro">📌 Altro</option>
                   </select>
                 </div>
@@ -1183,18 +1173,27 @@ export const CalendarioView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Time Slot Picker for Edit */}
+              {/* TimeSlotPicker */}
               <TimeSlotPicker
-                label="Orario Evento"
                 startTime={editStartTime}
                 endTime={editEndTime}
-                onChange={(s, e) => {
-                  setEditStartTime(s);
-                  setEditEndTime(e);
+                onChange={(start, end) => {
+                  setEditStartTime(start);
+                  setEditEndTime(end);
                 }}
               />
 
               <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
+                  <input
+                    type="text"
+                    value={editRoom}
+                    onChange={(e) => setEditRoom(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold"
+                  />
+                </div>
+
                 <div>
                   <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Corso</label>
                   <select
@@ -1202,52 +1201,54 @@ export const CalendarioView: React.FC = () => {
                     onChange={(e) => setEditCourse(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-bold"
                   >
+                    <option value="">Nessun corso</option>
                     {corsi.map((c) => (
                       <option key={c.id} value={c.name}>
                         {c.name}
                       </option>
                     ))}
-                    <option value="Altro">Altro / Nessuno</option>
                   </select>
-                </div>
-
-                <div>
-                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Aula / Sede</label>
-                  <input
-                    type="text"
-                    value={editRoom}
-                    onChange={(e) => setEditRoom(e.target.value)}
-                    placeholder="Es. Aula Magna / 4B"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-medium"
-                  />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note o compiti</label>
+                <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">Note</label>
                 <textarea
                   rows={2}
                   value={editNotes}
                   onChange={(e) => setEditNotes(e.target.value)}
-                  placeholder="Dettagli ed argomenti..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:border-blue-500 font-semibold resize-none"
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-between items-center pt-2">
                 <button
                   type="button"
-                  onClick={() => setEditingEvent(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                  onClick={() => {
+                    deleteEvento(editingEvent.id);
+                    setEditingEvent(null);
+                  }}
+                  className="flex items-center gap-1 px-3 py-2 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 font-bold"
                 >
-                  Annulla
+                  <Trash2 className="w-4 h-4" />
+                  <span>Elimina</span>
                 </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
-                >
-                  Salva Modifiche
-                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingEvent(null)}
+                    className="px-4 py-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-bold"
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700"
+                  >
+                    Salva Modifiche
+                  </button>
+                </div>
               </div>
             </form>
           </div>
