@@ -10,11 +10,16 @@ export interface DegreeCourseCategory {
 }
 
 export const UNIVERSITA_ITALIANE: string[] = [
+  'Università di Bologna - Campus di Bologna (UniBo)',
+  'Università di Bologna - Campus di Forlì (UniBo)',
+  'Università di Bologna - Campus di Cesena (UniBo)',
+  'Università di Bologna - Campus di Ravenna (UniBo)',
+  'Università di Bologna - Campus di Rimini (UniBo)',
+  'Università di Bologna (UniBo - Multicampus)',
   'Politecnico di Milano (PoliMi)',
   'Politecnico di Torino (PoliTo)',
   'Politecnico di Bari (PoliBa)',
   'Sapienza Università di Roma',
-  'Università di Bologna (UniBo)',
   'Università degli Studi di Padova (UniPd)',
   'Università degli Studi di Napoli Federico II',
   'Università degli Studi di Milano (UniMi - Statale)',

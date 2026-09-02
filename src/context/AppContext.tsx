@@ -35,7 +35,11 @@ interface AppContextType {
   addCorso: (corso: Omit<Corso, 'id'>) => void;
   updateCorso: (courseId: string, updates: Partial<Corso>) => void;
   deleteCorso: (courseId: string) => void;
-  loadPredefinedCoursesForProgram: (programId: string, replaceExisting?: boolean) => void;
+  loadPredefinedCoursesForProgram: (
+    programId: string,
+    replaceExisting?: boolean,
+    targetYear?: number | 'all'
+  ) => void;
   updateCorsoProgress: (courseId: string, progress: number) => void;
   toggleCourseTopic: (courseId: string, topicId: string) => void;
   addTopicToCorso: (courseId: string, topicName: string) => void;
@@ -303,11 +307,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCorsi((prev) => prev.filter((c) => c.id !== courseId));
   };
 
-  const loadPredefinedCoursesForProgram = (programId: string, replaceExisting: boolean = true) => {
+  const loadPredefinedCoursesForProgram = (
+    programId: string,
+    replaceExisting: boolean = true,
+    targetYear?: number | 'all'
+  ) => {
     const program = DEGREE_PROGRAMS.find((p) => p.id === programId);
     if (!program) return;
 
-    const newCourses: Corso[] = program.courses.map((c, idx) => ({
+    const filtered =
+      targetYear && targetYear !== 'all'
+        ? program.courses.filter((c) => c.year === targetYear)
+        : program.courses;
+
+    const newCourses: Corso[] = filtered.map((c, idx) => ({
       progress: 0,
       notesOrganized: 0,
       repetitionsDone: 0,
@@ -320,7 +333,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
 
     if (replaceExisting) {
-      setCorsi(newCourses);
+      if (targetYear && targetYear !== 'all') {
+        setCorsi((prev) => [...prev.filter((c) => c.year !== targetYear), ...newCourses]);
+      } else {
+        setCorsi(newCourses);
+      }
     } else {
       setCorsi((prev) => {
         const existingNames = new Set(prev.map((c) => c.name.toLowerCase()));
@@ -333,6 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...prev,
       studyProgram: program.name,
       university: program.university,
+      ...(targetYear && targetYear !== 'all' ? { studyYear: `${targetYear}° Anno` } : {}),
     }));
   };
 

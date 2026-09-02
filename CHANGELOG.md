@@ -1,5 +1,23 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.15] - 2026-09-02
+
+### Nuove Funzionalità e Miglioramenti
+
+- **Piani di Studio Multicampus UniBo & Aggiornamento Ingegneria Meccanica**:
+  - Distinzione e supporto esplicito per le sedi multicampus dell'Università di Bologna:
+    - `Ingegneria Meccanica (Campus di Bologna) - UniBo` (Codice 6680 - insegnamenti ufficiali con codici, CFU e semestri esatti).
+    - `Ingegneria Meccanica (Campus di Forlì) - UniBo` (Insegnamenti specifici della sede di Forlì).
+  - Aggiunta nel catalogo delle opzioni multicampus UniBo (Bologna, Forlì, Cesena, Ravenna, Rimini).
+- **Caricamento Selettivo del Piano di Studi per Anno di Corso**:
+  - Nella modale *"Carica Piano di Studi"* e nelle Impostazioni è ora possibile selezionare l'anno esatto da importare:
+    - **1° Anno** (carica solo i 10 insegnamenti del primo anno, es. 60 CFU).
+    - **2° Anno** (carica solo gli insegnamenti del secondo anno).
+    - **3° Anno** (carica solo gli insegnamenti del terzo anno).
+    - **Tutti gli Anni** (intero triennio da 180 CFU).
+  - Modalità non distruttiva (*"Aggiungi corsi"*) o di sostituzione selettiva dell'anno scelto senza cancellare gli altri anni.
+  - Anteprima interattiva in tempo reale degli insegnamenti, codici e crediti prima di confermare il caricamento.
+
 ## [v1.0.14] - 2026-09-02
 
 ### Nuove Funzionalità e Miglioramenti

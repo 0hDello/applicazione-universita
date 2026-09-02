@@ -355,43 +355,80 @@ export const ImpostazioniView: React.FC = () => {
               (p) =>
                 p.name.toLowerCase() === formData.studyProgram?.toLowerCase() ||
                 formData.studyProgram?.toLowerCase().includes(p.shortName.toLowerCase()) ||
-                formData.studyProgram?.toLowerCase().includes('ingegneria meccanica')
+                (formData.studyProgram?.toLowerCase().includes('ingegneria meccanica') &&
+                  (formData.university?.toLowerCase().includes('forlì')
+                    ? p.id === 'ingegneria_meccanica_forli'
+                    : p.id === 'ingegneria_meccanica_bologna'))
             );
 
             if (!matchedProg) return null;
 
+            const currentYearNum = parseInt(formData.studyYear) || 1;
+            const yearCourses = matchedProg.courses.filter((c) => c.year === currentYearNum);
+
             return (
-              <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-2.5">
-                  <BookMarked className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold text-purple-950 dark:text-purple-200">
-                      Piano di Studi Ufficiale Disponibile ({matchedProg.courses.length} insegnamenti - {matchedProg.totalCFU} CFU)
-                    </p>
-                    <p className="text-[10px] text-purple-700 dark:text-purple-400">
-                      {matchedProg.name}
-                    </p>
+              <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex flex-col gap-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2.5">
+                    <BookMarked className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                        Piano di Studi Ufficiale Disponibile ({matchedProg.courses.length} insegnamenti - {matchedProg.totalCFU} CFU)
+                      </p>
+                      <p className="text-[10px] text-purple-700 dark:text-purple-400">
+                        {matchedProg.name} • 📍 {matchedProg.campus}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (
-                      corsi.length === 0 ||
-                      window.confirm(
-                        `Vuoi caricare i corsi per "${matchedProg.shortName}"? I corsi verranno aggiunti al tuo piano di studi.`
-                      )
-                    ) {
-                      loadPredefinedCoursesForProgram(matchedProg.id, corsi.length === 0);
-                      setSaveSuccess(true);
-                      setTimeout(() => setSaveSuccess(false), 2000);
-                    }
-                  }}
-                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
-                >
-                  ⚡ Carica Corsi nel Piano di Studi
-                </button>
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-purple-200/50 dark:border-purple-800/40">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-[10px] text-purple-900 dark:text-purple-300 font-bold">
+                      {yearCourses.length} corsi del {currentYearNum}° Anno ({yearCourses.reduce((sum, c) => sum + (c.cfu || 0), 0)} CFU)
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          corsi.length === 0 ||
+                          window.confirm(
+                            `Vuoi caricare solo i ${yearCourses.length} corsi del ${currentYearNum}° anno per "${matchedProg.shortName}"?`
+                          )
+                        ) {
+                          loadPredefinedCoursesForProgram(matchedProg.id, true, currentYearNum);
+                          setSaveSuccess(true);
+                          setTimeout(() => setSaveSuccess(false), 2000);
+                        }
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                    >
+                      ⚡ Carica solo {currentYearNum}° Anno
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          corsi.length === 0 ||
+                          window.confirm(
+                            `Vuoi caricare tutti i ${matchedProg.courses.length} corsi del triennio per "${matchedProg.shortName}"?`
+                          )
+                        ) {
+                          loadPredefinedCoursesForProgram(matchedProg.id, true, 'all');
+                          setSaveSuccess(true);
+                          setTimeout(() => setSaveSuccess(false), 2000);
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-purple-100 dark:bg-purple-900/60 hover:bg-purple-200 dark:hover:bg-purple-800/60 text-purple-900 dark:text-purple-200 font-bold text-xs transition-colors cursor-pointer"
+                    >
+                      Tutto il Triennio
+                    </button>
+                  </div>
+                </div>
               </div>
             );
           })()}

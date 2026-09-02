@@ -35,7 +35,9 @@ export const CorsiView: React.FC = () => {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [customizingCourse, setCustomizingCourse] = useState<Corso | null>(null);
   const [isImportingOrario, setIsImportingOrario] = useState<boolean>(false);
-  const [showProgramPicker, setShowProgramPicker] = useState<boolean>(false);
+  const [isProgramModalOpen, setIsProgramModalOpen] = useState<boolean>(false);
+  const [selectedProgramId, setSelectedProgramId] = useState<string>(DEGREE_PROGRAMS[0].id);
+  const [selectedProgramYear, setSelectedProgramYear] = useState<number | 'all'>(1);
 
   // New Course Modal State
   const [isAddingCourse, setIsAddingCourse] = useState(false);
@@ -150,56 +152,14 @@ export const CorsiView: React.FC = () => {
 
         <div className="flex items-center gap-2.5 flex-wrap">
           {/* Load Degree Program Button */}
-          <div className="relative">
-            <button
-              onClick={() => setShowProgramPicker(!showProgramPicker)}
-              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold hover:bg-purple-100 transition-colors shadow-xs"
-              title="Carica corsi tipici del corso di laurea"
-            >
-              <BookMarked className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-              <span>Carica Piano di Studi</span>
-            </button>
-
-            {showProgramPicker && (
-              <div className="absolute right-0 mt-2 w-80 rounded-2xl bg-white dark:bg-zinc-950 border border-slate-200 dark:border-zinc-800 shadow-2xl p-3 z-40 animate-in fade-in zoom-in-95">
-                <div className="p-2 border-b border-slate-100 dark:border-zinc-800 mb-2">
-                  <h5 className="font-bold text-xs text-slate-900 dark:text-white">
-                    Seleziona Indirizzo di Studi
-                  </h5>
-                  <p className="text-[10px] text-slate-400">
-                    Carica automaticamente l'elenco dei corsi ufficiali per il percorso selezionato.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto">
-                  {DEGREE_PROGRAMS.map((prog) => (
-                    <button
-                      key={prog.id}
-                      onClick={() => {
-                        if (
-                          corsi.length === 0 ||
-                          window.confirm(
-                            `Vuoi caricare i corsi per "${prog.shortName}"? I corsi verranno aggiunti al tuo piano di studi.`
-                          )
-                        ) {
-                          loadPredefinedCoursesForProgram(prog.id, corsi.length === 0);
-                          setShowProgramPicker(false);
-                        }
-                      }}
-                      className="p-2 rounded-xl text-left hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors flex flex-col gap-0.5"
-                    >
-                      <span className="text-xs font-bold text-slate-900 dark:text-white">
-                        {prog.shortName}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        {prog.university} • {prog.courses.length} insegnamenti ({prog.totalCFU} CFU)
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <button
+            onClick={() => setIsProgramModalOpen(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold hover:bg-purple-100 transition-colors shadow-xs cursor-pointer"
+            title="Carica corsi ufficiali per corso di laurea e anno"
+          >
+            <BookMarked className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+            <span>Carica Piano di Studi</span>
+          </button>
 
           <button
             onClick={() => setIsImportingOrario(true)}
@@ -741,6 +701,176 @@ export const CorsiView: React.FC = () => {
       {isImportingOrario && (
         <ImportOrarioModal onClose={() => setIsImportingOrario(false)} />
       )}
+
+      {/* MODAL: CARICA PIANO DI STUDI UFFICIALE (CON ANNO E MULTICAMPUS) */}
+      {isProgramModalOpen && (() => {
+        const activeProg = DEGREE_PROGRAMS.find((p) => p.id === selectedProgramId) || DEGREE_PROGRAMS[0];
+        const previewCourses = selectedProgramYear === 'all'
+          ? activeProg.courses
+          : activeProg.courses.filter((c) => c.year === selectedProgramYear);
+        const previewCFU = previewCourses.reduce((sum, c) => sum + (c.cfu || 0), 0);
+
+        return (
+          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-zinc-950 rounded-3xl p-6 max-w-xl w-full border border-slate-100 dark:border-zinc-800 shadow-2xl flex flex-col gap-5 animate-in fade-in zoom-in-95 max-h-[90vh] overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-purple-50 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-100 dark:border-purple-900 shrink-0">
+                    <BookMarked className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
+                      Carica Piano di Studi Ufficiale
+                    </h3>
+                    <p className="text-[11px] font-medium text-slate-400">
+                      Seleziona il tuo corso di laurea, la sede e l'anno accademico da importare.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsProgramModalOpen(false)}
+                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Form Content */}
+              <div className="flex flex-col gap-4 overflow-y-auto pr-1">
+                {/* 1. Corso di Laurea & Sede Multicampus */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block mb-1.5">
+                    Corso di Laurea e Sede / Campus
+                  </label>
+                  <select
+                    value={selectedProgramId}
+                    onChange={(e) => setSelectedProgramId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30"
+                  >
+                    {DEGREE_PROGRAMS.map((prog) => (
+                      <option key={prog.id} value={prog.id}>
+                        {prog.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-purple-600 dark:text-purple-400 font-semibold mt-1">
+                    📍 {activeProg.campus || activeProg.university} • Totale {activeProg.courses.length} corsi ({activeProg.totalCFU} CFU)
+                  </p>
+                </div>
+
+                {/* 2. Selezione Anno di Corso */}
+                <div>
+                  <label className="text-xs font-bold text-slate-700 dark:text-zinc-300 block mb-1.5">
+                    Quale anno vuoi importare?
+                  </label>
+                  <div className="grid grid-cols-4 gap-2">
+                    {[
+                      { id: 1 as const, label: '1° Anno' },
+                      { id: 2 as const, label: '2° Anno' },
+                      { id: 3 as const, label: '3° Anno' },
+                      { id: 'all' as const, label: 'Tutti gli Anni' },
+                    ].map((y) => (
+                      <button
+                        key={y.id}
+                        type="button"
+                        onClick={() => setSelectedProgramYear(y.id)}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold transition-all text-center ${
+                          selectedProgramYear === y.id
+                            ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30 ring-2 ring-purple-600/30'
+                            : 'bg-slate-100 dark:bg-zinc-900 text-slate-600 dark:text-zinc-400 hover:bg-slate-200 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        {y.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. Anteprima Insegnamenti */}
+                <div className="bg-slate-50 dark:bg-zinc-900/70 p-3.5 rounded-2xl border border-slate-200/80 dark:border-zinc-800">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                      Anteprima: {previewCourses.length} insegnamenti ({previewCFU} CFU)
+                    </span>
+                    <span className="text-[10px] text-slate-400">
+                      {selectedProgramYear === 'all' ? 'Intero percorso' : `${selectedProgramYear}° Anno`}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5 max-h-48 overflow-y-auto pr-1">
+                    {previewCourses.map((c, i) => (
+                      <div
+                        key={i}
+                        className="p-2 rounded-xl bg-white dark:bg-zinc-950 border border-slate-100 dark:border-zinc-800/80 flex items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="min-w-0 flex items-center gap-2">
+                          <span>{c.emoji || '📚'}</span>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 dark:text-white truncate">
+                              {c.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              Cod. {c.code} • {c.semestre}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded-lg bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] shrink-0">
+                          {c.cfu} CFU
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-zinc-800 gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setIsProgramModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-900 text-xs font-bold transition-colors"
+                >
+                  Annulla
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      loadPredefinedCoursesForProgram(activeProg.id, false, selectedProgramYear);
+                      setIsProgramModalOpen(false);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-zinc-900 hover:bg-slate-200 dark:hover:bg-zinc-800 text-slate-800 dark:text-zinc-200 text-xs font-bold transition-colors"
+                  >
+                    + Aggiungi {previewCourses.length} corsi
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (
+                        corsi.length === 0 ||
+                        window.confirm(
+                          selectedProgramYear === 'all'
+                            ? `Sostituire tutti i corsi correnti con i ${previewCourses.length} insegnamenti di ${activeProg.shortName}?`
+                            : `Sostituire i corsi del ${selectedProgramYear}° anno con i ${previewCourses.length} insegnamenti ufficiali?`
+                        )
+                      ) {
+                        loadPredefinedCoursesForProgram(activeProg.id, true, selectedProgramYear);
+                        setIsProgramModalOpen(false);
+                      }
+                    }}
+                    className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold shadow-md shadow-purple-600/20 transition-colors"
+                  >
+                    ⚡ Carica & Sostituisci {selectedProgramYear === 'all' ? 'Tutto' : `${selectedProgramYear}° Anno`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
