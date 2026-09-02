@@ -1,4 +1,6 @@
 import { createWorker } from 'tesseract.js';
+import type { Corso } from '../types';
+import { matchCourse } from './courseMatcher';
 
 export interface ParsedTimetableSlot {
   id: string;
@@ -7,6 +9,9 @@ export interface ParsedTimetableSlot {
   startTime: string; // '09:00'
   endTime: string; // '11:00'
   courseName: string;
+  matchedCourseId?: string;
+  matchedCourseColor?: string;
+  matchScore?: number;
   room: string;
   professor?: string;
   notes?: string;
@@ -88,7 +93,7 @@ const DAYS_MAP: { [key: string]: { name: string; index: number } } = {
 export const standardizeTime = (timeStr: string): string => {
   if (!timeStr) return '09:00';
   const clean = timeStr.trim().replace(/[.;,]/g, ':').replace(/\s+/g, '');
-  
+
   if (!clean.includes(':')) {
     const num = parseInt(clean, 10);
     if (!isNaN(num)) {
@@ -96,15 +101,15 @@ export const standardizeTime = (timeStr: string): string => {
       return `${h < 10 ? '0' + h : h}:00`;
     }
   }
-  
+
   const parts = clean.split(':');
   const h = parseInt(parts[0], 10);
   const m = parseInt(parts[1] || '0', 10);
-  
+
   if (isNaN(h)) return '09:00';
   const clampedH = Math.min(23, Math.max(0, h));
   const clampedM = Math.min(59, Math.max(0, isNaN(m) ? 0 : m));
-  
+
   const hh = clampedH < 10 ? '0' + clampedH : String(clampedH);
   const mm = clampedM < 10 ? '0' + clampedM : String(clampedM);
   return `${hh}:${mm}`;
@@ -127,30 +132,6 @@ export const cleanOcrText = (raw: string): string => {
     .replace(/(\d{1,2})[.;](\d{2})/g, '$1:$2')
     // Fix common range patterns (e.g. 9-11 or 9:00 - 11:00)
     .replace(/(\d{1,2}(?::\d{2})?)\s*(?:[—–_~]|\s+a\s+|\s+alle\s+)\s*(\d{1,2}(?::\d{2})?)/gi, '$1 - $2');
-};
-
-/**
- * Fuzzy match extracted subject name with known course names
- */
-export const matchWithKnownCourses = (extractedName: string, knownCourses: string[]): string => {
-  if (!extractedName || knownCourses.length === 0) return extractedName;
-  const lowerExtracted = extractedName.toLowerCase().replace(/[^a-z0-9]/g, '');
-
-  for (const course of knownCourses) {
-    const lowerCourse = course.toLowerCase().replace(/[^a-z0-9]/g, '');
-    if (lowerExtracted.includes(lowerCourse) || lowerCourse.includes(lowerExtracted)) {
-      return course;
-    }
-    // Check initials or word overlap
-    const courseWords = course.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-    const extractedWords = extractedName.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
-    const matchCount = courseWords.filter((cw) => extractedWords.some((ew) => ew.includes(cw) || cw.includes(ew))).length;
-    if (matchCount >= 2 || (courseWords.length === 1 && matchCount === 1)) {
-      return course;
-    }
-  }
-
-  return extractedName;
 };
 
 /**
@@ -185,7 +166,7 @@ export const runOCR = async (
  */
 export const parseTimetableText = (
   rawText: string,
-  knownCourseNames: string[] = []
+  availableCourses: Corso[] = []
 ): ParsedTimetableSlot[] => {
   const cleanedText = cleanOcrText(rawText);
   const slots: ParsedTimetableSlot[] = [];
@@ -253,11 +234,8 @@ export const parseTimetableText = (
         }
       }
 
-      // Match with known courses if available
-      const finalCourseName = matchWithKnownCourses(
-        rawCourseName || 'Lezione Universitaria',
-        knownCourseNames
-      );
+      // Match with known courses with intelligent fuzzy matching
+      const matchRes = matchCourse(rawCourseName || 'Lezione Universitaria', availableCourses);
 
       slots.push({
         id: `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -265,7 +243,10 @@ export const parseTimetableText = (
         dayIndex: currentDay.index,
         startTime,
         endTime,
-        courseName: finalCourseName,
+        courseName: matchRes.matchedName,
+        matchedCourseId: matchRes.course?.id,
+        matchedCourseColor: matchRes.course?.color,
+        matchScore: matchRes.score,
         room,
         professor,
       });
@@ -290,33 +271,41 @@ export const parseTimetableText = (
           .trim();
 
         if (rawCourseName.length > 2) {
+          const matchRes = matchCourse(rawCourseName, availableCourses);
           slots.push({
             id: `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
             day: currentDay.name,
             dayIndex: currentDay.index,
             startTime,
             endTime,
-            courseName: matchWithKnownCourses(rawCourseName, knownCourseNames),
+            courseName: matchRes.matchedName,
+            matchedCourseId: matchRes.course?.id,
+            matchedCourseColor: matchRes.course?.color,
+            matchScore: matchRes.score,
             room,
           });
-          i++; // skip next line as it was consumed
+          i++; // skip next line
         }
       }
     }
   }
 
-  // Fallback: If no slots parsed, create structured editable slots from meaningful lines
+  // Fallback: If no slots parsed, create structured slots from meaningful lines
   if (slots.length === 0 && lines.length > 0) {
     const validLines = lines.filter((l) => l.length > 2 && !l.match(dayRegex)).slice(0, 6);
     validLines.forEach((line, idx) => {
       const startH = 9 + (idx % 4) * 2;
+      const matchRes = matchCourse(line.slice(0, 40), availableCourses);
       slots.push({
         id: `slot_${Date.now()}_${idx}`,
         day: DAYS_LIST[idx % 5],
         dayIndex: idx % 5,
         startTime: `${String(startH).padStart(2, '0')}:00`,
         endTime: `${String(startH + 2).padStart(2, '0')}:00`,
-        courseName: matchWithKnownCourses(line.slice(0, 40), knownCourseNames),
+        courseName: matchRes.matchedName,
+        matchedCourseId: matchRes.course?.id,
+        matchedCourseColor: matchRes.course?.color,
+        matchScore: matchRes.score,
         room: 'Aula 1',
       });
     });
@@ -330,7 +319,7 @@ export const parseTimetableText = (
  */
 export const parseBulkFile = (
   content: string,
-  knownCourseNames: string[] = []
+  availableCourses: Corso[] = []
 ): ParsedTimetableSlot[] => {
   const trimmed = content.trim();
 
@@ -343,13 +332,17 @@ export const parseBulkFile = (
           const rawCourse = item.courseName || item.corso || item.materia || 'Corso';
           const dayName = item.day || item.giorno || 'Lunedì';
           const matchedDay = DAYS_MAP[dayName.toLowerCase()] || { name: 'Lunedì', index: 0 };
+          const matchRes = matchCourse(rawCourse, availableCourses);
           return {
             id: `slot_json_${Date.now()}_${idx}`,
             day: matchedDay.name,
             dayIndex: matchedDay.index,
             startTime: standardizeTime(item.startTime || item.oraInizio || '09:00'),
             endTime: standardizeTime(item.endTime || item.oraFine || '11:00'),
-            courseName: matchWithKnownCourses(rawCourse, knownCourseNames),
+            courseName: matchRes.matchedName,
+            matchedCourseId: matchRes.course?.id,
+            matchedCourseColor: matchRes.course?.color,
+            matchScore: matchRes.score,
             room: item.room || item.aula || 'Aula 1',
             professor: item.professor || item.docente || '',
           };
@@ -366,7 +359,6 @@ export const parseBulkFile = (
 
   rows.forEach((cols, idx) => {
     if (cols.length >= 2) {
-      // Skip header if contains 'giorno' or 'day'
       if (idx === 0 && (cols[0].toLowerCase().includes('giorno') || cols[0].toLowerCase().includes('day'))) {
         return;
       }
@@ -380,6 +372,7 @@ export const parseBulkFile = (
       const timeParts = timeStr.split('-').map((t) => t.trim());
       const startTime = standardizeTime(timeParts[0] || '09:00');
       const endTime = standardizeTime(timeParts[1] || '11:00');
+      const matchRes = matchCourse(course, availableCourses);
 
       slots.push({
         id: `slot_csv_${Date.now()}_${idx}`,
@@ -387,7 +380,10 @@ export const parseBulkFile = (
         dayIndex: matchedDay.index,
         startTime,
         endTime,
-        courseName: matchWithKnownCourses(course, knownCourseNames),
+        courseName: matchRes.matchedName,
+        matchedCourseId: matchRes.course?.id,
+        matchedCourseColor: matchRes.course?.color,
+        matchScore: matchRes.score,
         room,
       });
     }

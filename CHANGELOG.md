@@ -1,5 +1,21 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.16] - 2026-09-02
+
+### Nuove Funzionalità e Miglioramenti
+
+- **Motore Intelligente di Riconoscimento e Categorizzazione Corsi (`courseMatcher`)**:
+  - Algoritmo avanzato di fuzzy matching con normalizzazione testo, rimozione stop-words, gestione acronimi universitari (es. *AM T-A* per *Analisi Matematica T-A*, *FG* per *Fisica Generale*, *DM* per *Disegno Meccanico*, *MR* per *Meccanica Razionale*, *CLA* per *Inglese*), codici materia ufficiali e similarità semantica.
+- **Sincronizzazione Automatica Orario (OCR Screenshot & Testo Incollato)**:
+  - Riconoscimento automatico delle materie del piano di studi con indicatore visivo percentuale di matching (`🎯 Riconosciuto (XX%)`) e dot colore personalizzato del corso.
+  - Sincronizzazione automatica bidirezionale:
+    1. Inserimento eventi nel **Calendario** con badge e colore coordinato del corso.
+    2. Creazione delle lezioni nel **Registro Presenze** di ciascun corso per monitoraggio immediato della frequenza obbligatoria.
+    3. Aggiornamento automatico dell'aula abituale e dell'orario di lezione nella scheda del corso.
+- **Categorizzazione Automatica da Calendari Esterni (Google Calendar / Apple / Notion CSV / .ICS)**:
+  - Mappatura intelligente dei nomi corsi e categorizzazione automatica con tema colore associato.
+  - Opzione per sincronizzare direttamente le lezioni importate con il registro presenze del corso.
+
 ## [v1.0.15] - 2026-09-02
 
 ### Nuove Funzionalità e Miglioramenti

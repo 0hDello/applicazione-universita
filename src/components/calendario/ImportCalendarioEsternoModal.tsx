@@ -5,6 +5,7 @@ import {
   parseCsvContent,
   type ExternalCalendarEvent,
 } from '../../utils/calendarImporter';
+import { matchCourse } from '../../utils/courseMatcher';
 import type { EventCategory } from '../../types';
 import {
   Calendar as CalendarIcon,
@@ -25,7 +26,7 @@ interface ImportCalendarioEsternoModalProps {
 }
 
 export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModalProps> = ({ onClose }) => {
-  const { corsi, addEvento } = useApp();
+  const { corsi, addEvento, addLezioneToCorso } = useApp();
 
   const [activeTab, setActiveTab] = useState<'ics' | 'url' | 'notion'>('ics');
   const [importedEvents, setImportedEvents] = useState<ExternalCalendarEvent[]>([]);
@@ -36,10 +37,10 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
   const [notionCsvText, setNotionCsvText] = useState<string>('');
   const [importSuccess, setImportSuccess] = useState<boolean>(false);
   const [showTutorial, setShowTutorial] = useState<boolean>(false);
+  const [syncWithCourseLectures, setSyncWithCourseLectures] = useState<boolean>(true);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const csvFileInputRef = useRef<HTMLInputElement>(null);
-  const knownCourses = corsi.map((c) => c.name);
 
   // Handle ICS file upload
   const handleIcsFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,7 +52,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
     reader.onload = (event) => {
       const text = event.target?.result as string;
       if (text) {
-        const events = parseIcsContent(text, knownCourses);
+        const events = parseIcsContent(text, corsi);
         setImportedEvents(events);
       }
     };
@@ -69,7 +70,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
       const response = await fetch(cleanUrl);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const text = await response.text();
-      const events = parseIcsContent(text, knownCourses);
+      const events = parseIcsContent(text, corsi);
       if (events.length === 0) {
         setUrlError('Nessun evento trovato nel feed fornito.');
       } else {
@@ -95,7 +96,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
       const text = event.target?.result as string;
       if (text) {
         setNotionCsvText(text);
-        const events = parseCsvContent(text, knownCourses);
+        const events = parseCsvContent(text, corsi);
         setImportedEvents(events);
       }
     };
@@ -104,7 +105,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
 
   const handleParseCsvText = () => {
     if (!notionCsvText.trim()) return;
-    const events = parseCsvContent(notionCsvText, knownCourses);
+    const events = parseCsvContent(notionCsvText, corsi);
     setImportedEvents(events);
   };
 
@@ -121,7 +122,37 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
 
   const handleEventChange = (id: string, field: keyof ExternalCalendarEvent, value: any) => {
     setImportedEvents((prev) =>
-      prev.map((ev) => (ev.id === id ? { ...ev, [field]: value } : ev))
+      prev.map((ev) => {
+        if (ev.id !== id) return ev;
+        const updated = { ...ev, [field]: value };
+        if (field === 'title') {
+          const matchRes = matchCourse(`${value} ${ev.notes || ''}`, corsi);
+          if (matchRes.course) {
+            updated.courseName = matchRes.course.name;
+            updated.matchedCourseId = matchRes.course.id;
+            updated.matchedCourseColor = matchRes.course.color;
+            updated.matchScore = matchRes.score;
+          }
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleSelectCourseForEvent = (eventId: string, courseId: string) => {
+    const matched = corsi.find((c) => c.id === courseId);
+    setImportedEvents((prev) =>
+      prev.map((ev) =>
+        ev.id === eventId
+          ? {
+              ...ev,
+              courseName: matched ? matched.name : undefined,
+              matchedCourseId: matched ? matched.id : undefined,
+              matchedCourseColor: matched ? matched.color : undefined,
+              matchScore: matched ? 1.0 : 0,
+            }
+          : ev
+      )
     );
   };
 
@@ -129,21 +160,49 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
     setImportedEvents((prev) => prev.filter((ev) => ev.id !== id));
   };
 
-  // Commit selected events to AppContext
+  // Commit selected events to AppContext with full course linkage
   const handleCommitImport = () => {
     const toImport = importedEvents.filter((ev) => ev.selected);
     if (toImport.length === 0) return;
 
     toImport.forEach((ev) => {
+      // Find matching course in study plan
+      const matchedCourse = corsi.find(
+        (c) =>
+          c.id === ev.matchedCourseId ||
+          (ev.courseName && c.name.toLowerCase() === ev.courseName.toLowerCase()) ||
+          ev.title.toLowerCase().includes(c.name.toLowerCase())
+      );
+
+      const finalCourseName = matchedCourse ? matchedCourse.name : (ev.courseName || undefined);
+      const finalCourseId = matchedCourse ? matchedCourse.id : undefined;
+
+      // 1. Add to Calendar with direct course association
       addEvento({
         title: ev.title,
         category: ev.category,
         date: ev.date,
         time: ev.time,
         room: ev.room || 'Aula da definire',
-        courseName: ev.courseName || (ev.category === 'Lezione' ? corsi[0]?.name : undefined),
+        courseName: finalCourseName,
+        relatedCourseId: finalCourseId,
         notes: ev.notes || '',
       });
+
+      // 2. If it is a lecture and course exists, also add to Course Lectures Register
+      if (syncWithCourseLectures && ev.category === 'Lezione' && matchedCourse) {
+        addLezioneToCorso(matchedCourse.id, {
+          number: (matchedCourse.lezioni?.length || 0) + 1,
+          title: ev.title,
+          date: ev.date,
+          time: ev.time,
+          room: ev.room || 'Aula da definire',
+          topicsCovered: '',
+          status: 'programmata',
+          attendance: 'non_registrata',
+          hasNotes: false,
+        });
+      }
     });
 
     setImportSuccess(true);
@@ -155,8 +214,8 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
   const selectedCount = importedEvents.filter((e) => e.selected).length;
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#0d0d0f] rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-950 rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-zinc-950/60">
           <div className="flex items-center gap-3">
@@ -168,21 +227,21 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                 Importa da Calendario Esterno
               </h3>
               <p className="text-xs text-slate-400">
-                Sincronizza e carica eventi da Google Calendar, Notion, Apple Calendar e file iCal (.ics).
+                Sincronizza e categorizza automaticamente eventi da Google Calendar, Notion, Apple Calendar e file .ics.
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => setShowTutorial(!showTutorial)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 text-xs font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <HelpCircle className="w-4 h-4 text-blue-500" />
               <span>{showTutorial ? 'Nascondi Guida' : 'Come esportare?'}</span>
             </button>
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
@@ -214,13 +273,13 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
         )}
 
         {/* Tab Navigation */}
-        <div className="px-6 pt-4 flex gap-2 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-[#0d0d0f] shrink-0">
+        <div className="px-6 pt-4 flex gap-2 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
           <button
             onClick={() => setActiveTab('ics')}
             className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'ics'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
             }`}
           >
             <Upload className="w-4 h-4" />
@@ -231,7 +290,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
             className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'url'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
             }`}
           >
             <Globe className="w-4 h-4" />
@@ -242,7 +301,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
             className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'notion'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
             }`}
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -258,10 +317,10 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-                Eventi importati con successo!
+                Eventi importati e categorizzati con successo!
               </h4>
               <p className="text-xs text-slate-400 max-w-sm">
-                Gli eventi selezionati sono stati aggiunti al tuo calendario e organizzati per data e orario.
+                Gli eventi sono stati sincronizzati con i corsi del tuo piano di studi e adottano i relativi temi colore.
               </p>
             </div>
           ) : (
@@ -271,7 +330,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                 <div className="flex flex-col gap-4">
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-zinc-950/40 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-zinc-900/40 transition-colors"
                   >
                     <input
                       type="file"
@@ -298,29 +357,32 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
               {/* TAB 2: URL ICAL */}
               {activeTab === 'url' && (
                 <div className="flex flex-col gap-3">
-                  <label className="font-bold text-slate-900 dark:text-white">
-                    Incolla l'indirizzo privato o pubblico iCal (URL / Webcal)
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={icalUrl}
-                      onChange={(e) => setIcalUrl(e.target.value)}
-                      placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
-                      className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white text-xs font-mono focus:outline-none"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleFetchIcalUrl}
-                      disabled={isLoadingUrl || !icalUrl.trim()}
-                      className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors shrink-0"
-                    >
-                      {isLoadingUrl ? 'Caricamento...' : 'Scarica Eventi'}
-                    </button>
+                  <div>
+                    <label className="font-bold text-slate-900 dark:text-white block mb-1">
+                      Link URL ICal / Webcal
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={icalUrl}
+                        onChange={(e) => setIcalUrl(e.target.value)}
+                        placeholder="https://calendar.google.com/calendar/ical/.../basic.ics o webcal://..."
+                        className="flex-1 px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleFetchIcalUrl}
+                        disabled={isLoadingUrl || !icalUrl.trim()}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        {isLoadingUrl ? 'Caricamento...' : 'Scarica Eventi'}
+                      </button>
+                    </div>
                   </div>
+
                   {urlError && (
-                    <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 text-amber-800 dark:text-amber-200 text-xs flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl text-[11px] text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
                       <span>{urlError}</span>
                     </div>
                   )}
@@ -330,18 +392,10 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
               {/* TAB 3: NOTION / CSV */}
               {activeTab === 'notion' && (
                 <div className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <label className="font-bold text-slate-900 dark:text-white">
-                      Incolla o carica l'export CSV da Notion
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => csvFileInputRef.current?.click()}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 font-bold text-slate-700 dark:text-zinc-300"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      <span>Carica file CSV</span>
-                    </button>
+                  <div
+                    onClick={() => csvFileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-3xl p-4 flex flex-col items-center justify-center text-center gap-2 cursor-pointer bg-slate-50/50 dark:bg-zinc-900/40 transition-colors"
+                  >
                     <input
                       type="file"
                       ref={csvFileInputRef}
@@ -349,35 +403,46 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                       accept=".csv,text/csv"
                       className="hidden"
                     />
+                    <FileSpreadsheet className="w-6 h-6 text-blue-600" />
+                    <div>
+                      <p className="font-bold text-slate-900 dark:text-white">
+                        Carica file CSV esportato da Notion
+                      </p>
+                      <p className="text-[10px] text-slate-400">oppure incolla il testo qui sotto</p>
+                    </div>
                   </div>
 
-                  <textarea
-                    rows={5}
-                    value={notionCsvText}
-                    onChange={(e) => setNotionCsvText(e.target.value)}
-                    placeholder="Titolo, Data, Orario, Corso, Aula&#10;Lezione Meccanica, 2026-03-15, 09:00 - 11:00, Meccanica Applicata, Aula Magna&#10;Esame Analisi 1, 2026-06-10, 10:00 - 13:00, Analisi Matematica 1, Aula 2B"
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none"
-                  />
-
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={handleParseCsvText}
-                      className="px-5 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors"
-                    >
-                      Elabora CSV Notion
-                    </button>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold text-slate-900 dark:text-white block">
+                      Incolla testo CSV
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={notionCsvText}
+                      onChange={(e) => setNotionCsvText(e.target.value)}
+                      placeholder="Title, Date, Time, Room, Course&#10;Analisi Matematica, 2026-03-16, 09:00 - 11:00, Aula Magna, Analisi Matematica T-A"
+                      className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleParseCsvText}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 transition-colors cursor-pointer"
+                      >
+                        Analizza CSV
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
 
-              {/* PREVIEW & MAPPING TABLE */}
+              {/* RECOGNIZED EVENTS INTERACTIVE MAPPING TABLE */}
               {importedEvents.length > 0 && (
-                <div className="flex flex-col gap-3 pt-4 border-t border-slate-100 dark:border-zinc-800">
+                <div className="flex flex-col gap-4 pt-4 border-t border-slate-100 dark:border-zinc-800">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                        Eventi Rilevati ({importedEvents.length})
+                        Eventi Riconosciuti ({importedEvents.length})
                       </h4>
                       <span className="px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-bold text-[10px]">
                         {selectedCount} selezionati
@@ -388,7 +453,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                       <button
                         type="button"
                         onClick={() => handleToggleSelectAll(true)}
-                        className="text-blue-600 dark:text-blue-400 hover:underline"
+                        className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                       >
                         Seleziona tutti
                       </button>
@@ -396,7 +461,7 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
                       <button
                         type="button"
                         onClick={() => handleToggleSelectAll(false)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200"
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 cursor-pointer"
                       >
                         Deseleziona tutti
                       </button>
@@ -405,97 +470,112 @@ export const ImportCalendarioEsternoModal: React.FC<ImportCalendarioEsternoModal
 
                   {/* Table */}
                   <div className="max-h-72 overflow-y-auto flex flex-col gap-2 pr-1">
-                    {importedEvents.map((ev) => (
-                      <div
-                        key={ev.id}
-                        className={`p-3 rounded-2xl border transition-all flex items-center gap-3 flex-wrap sm:flex-nowrap ${
-                          ev.selected
-                            ? 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-xs'
-                            : 'bg-slate-50/60 dark:bg-zinc-950/40 border-slate-100 dark:border-zinc-900 opacity-60'
-                        }`}
-                      >
-                        {/* Checkbox */}
-                        <input
-                          type="checkbox"
-                          checked={ev.selected}
-                          onChange={() => handleToggleEvent(ev.id)}
-                          className="w-4 h-4 text-blue-600 rounded cursor-pointer shrink-0"
-                        />
+                    {importedEvents.map((ev) => {
+                      const matched = corsi.find(
+                        (c) =>
+                          c.id === ev.matchedCourseId ||
+                          (ev.courseName && c.name.toLowerCase() === ev.courseName.toLowerCase())
+                      );
 
-                        {/* Title */}
-                        <div className="flex-1 min-w-[140px]">
-                          <input
-                            type="text"
-                            value={ev.title}
-                            onChange={(e) => handleEventChange(ev.id, 'title', e.target.value)}
-                            className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        {/* Category */}
-                        <div className="w-28 shrink-0">
-                          <select
-                            value={ev.category}
-                            onChange={(e) => handleEventChange(ev.id, 'category', e.target.value as EventCategory)}
-                            className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white text-[11px]"
-                          >
-                            <option value="Lezione">Lezione</option>
-                            <option value="Esame">Esame</option>
-                            <option value="Scadenza">Scadenza</option>
-                            <option value="Studio">Studio</option>
-                          </select>
-                        </div>
-
-                        {/* Date & Time */}
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <input
-                            type="date"
-                            value={ev.date}
-                            onChange={(e) => handleEventChange(ev.id, 'date', e.target.value)}
-                            className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px]"
-                          />
-                          <input
-                            type="text"
-                            value={ev.time}
-                            onChange={(e) => handleEventChange(ev.id, 'time', e.target.value)}
-                            className="w-24 px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px] text-center"
-                          />
-                        </div>
-
-                        {/* Course mapping */}
-                        <div className="w-36 shrink-0">
-                          <select
-                            value={ev.courseName || ''}
-                            onChange={(e) => handleEventChange(ev.id, 'courseName', e.target.value || undefined)}
-                            className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white text-[11px]"
-                          >
-                            <option value="">Nessun corso</option>
-                            {corsi.map((c) => (
-                              <option key={c.id} value={c.name}>
-                                {c.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Delete row */}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveEvent(ev.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0"
-                          title="Rimuovi"
+                      return (
+                        <div
+                          key={ev.id}
+                          className={`p-3 rounded-2xl border transition-all flex items-center gap-3 flex-wrap sm:flex-nowrap ${
+                            ev.selected
+                              ? 'bg-white dark:bg-zinc-900 border-slate-200 dark:border-zinc-800 shadow-xs'
+                              : 'bg-slate-50/60 dark:bg-zinc-950/40 border-slate-100 dark:border-zinc-900 opacity-60'
+                          }`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          {/* Checkbox */}
+                          <input
+                            type="checkbox"
+                            checked={ev.selected}
+                            onChange={() => handleToggleEvent(ev.id)}
+                            className="w-4 h-4 text-blue-600 rounded cursor-pointer shrink-0"
+                          />
+
+                          {/* Title */}
+                          <div className="flex-1 min-w-[140px]">
+                            <input
+                              type="text"
+                              value={ev.title}
+                              onChange={(e) => handleEventChange(ev.id, 'title', e.target.value)}
+                              className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white"
+                            />
+                          </div>
+
+                          {/* Category */}
+                          <div className="w-28 shrink-0">
+                            <select
+                              value={ev.category}
+                              onChange={(e) => handleEventChange(ev.id, 'category', e.target.value as EventCategory)}
+                              className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white text-[11px]"
+                            >
+                              <option value="Lezione">Lezione</option>
+                              <option value="Esame">Esame</option>
+                              <option value="Scadenza">Scadenza</option>
+                              <option value="Studio">Studio</option>
+                            </select>
+                          </div>
+
+                          {/* Date & Time */}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <input
+                              type="date"
+                              value={ev.date}
+                              onChange={(e) => handleEventChange(ev.id, 'date', e.target.value)}
+                              className="px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px]"
+                            />
+                            <input
+                              type="text"
+                              value={ev.time}
+                              onChange={(e) => handleEventChange(ev.id, 'time', e.target.value)}
+                              className="w-24 px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px] text-center"
+                            />
+                          </div>
+
+                          {/* Course Association Selector with Color Dot */}
+                          <div className="w-48 shrink-0">
+                            <select
+                              value={matched?.id || ''}
+                              onChange={(e) => handleSelectCourseForEvent(ev.id, e.target.value)}
+                              className="w-full px-2 py-1 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white text-[11px] font-bold"
+                            >
+                              <option value="">Nessun corso collegato</option>
+                              {corsi.map((c) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Delete row */}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEvent(ev.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors shrink-0 cursor-pointer"
+                            title="Rimuovi"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* Actions bar */}
-                  <div className="pt-3 flex items-center justify-between flex-wrap gap-3">
-                    <p className="text-slate-400 text-[11px]">
-                      Verranno inseriti <strong>{selectedCount}</strong> eventi nel calendario con sincronizzazione automatica.
-                    </p>
+                  <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between flex-wrap gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer text-[11px] text-slate-600 dark:text-zinc-300 font-bold">
+                      <input
+                        type="checkbox"
+                        checked={syncWithCourseLectures}
+                        onChange={(e) => setSyncWithCourseLectures(e.target.checked)}
+                        className="w-4 h-4 text-blue-600 rounded"
+                      />
+                      <span>Sincronizza anche con il registro presenze del corso</span>
+                    </label>
+
                     <button
                       type="button"
                       onClick={handleCommitImport}

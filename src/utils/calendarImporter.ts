@@ -1,4 +1,5 @@
-import type { EventCategory } from '../types';
+import type { EventCategory, Corso } from '../types';
+import { matchCourse } from './courseMatcher';
 
 export interface ExternalCalendarEvent {
   id: string;
@@ -8,6 +9,9 @@ export interface ExternalCalendarEvent {
   time: string; // "09:00 - 11:00"
   room?: string;
   courseName?: string;
+  matchedCourseId?: string;
+  matchedCourseColor?: string;
+  matchScore?: number;
   notes?: string;
   selected: boolean;
 }
@@ -16,7 +20,6 @@ export interface ExternalCalendarEvent {
  * Format iCal date string (e.g. "20260315T090000Z" or "20260315" or "TZID=Europe/Rome:20260315T090000")
  */
 export const parseIcsDate = (rawStr: string): { date: string; time: string } => {
-  // Strip TZID or parameters before colon
   const colonIdx = rawStr.indexOf(':');
   const value = colonIdx !== -1 ? rawStr.substring(colonIdx + 1).trim() : rawStr.trim();
 
@@ -83,9 +86,12 @@ export const guessCategory = (title: string, desc: string = ''): EventCategory =
 };
 
 /**
- * Parse an .ICS file string into a list of preview events
+ * Parse an .ICS file string into a list of preview events with intelligent course matching
  */
-export const parseIcsContent = (icsText: string, knownCourseNames: string[] = []): ExternalCalendarEvent[] => {
+export const parseIcsContent = (
+  icsText: string,
+  availableCourses: Corso[] = []
+): ExternalCalendarEvent[] => {
   const lines = unfoldIcs(icsText);
   const events: ExternalCalendarEvent[] = [];
 
@@ -119,15 +125,8 @@ export const parseIcsContent = (icsText: string, knownCourseNames: string[] = []
         const locClean = currentLocation.replace(/\\,/g, ',').replace(/\\;/g, ';').trim();
         const descClean = currentDescription.replace(/\\n/g, '\n').replace(/\\,/g, ',').trim();
 
-        // Check if title matches any known course
-        let matchedCourse = '';
-        const lowerTitle = titleClean.toLowerCase();
-        for (const cName of knownCourseNames) {
-          if (lowerTitle.includes(cName.toLowerCase()) || cName.toLowerCase().includes(lowerTitle)) {
-            matchedCourse = cName;
-            break;
-          }
-        }
+        // Perform intelligent match with available courses
+        const matchRes = matchCourse(`${titleClean} ${descClean}`, availableCourses);
 
         events.push({
           id: `ext_${Date.now()}_${events.length}_${Math.random().toString(36).substring(2, 6)}`,
@@ -136,7 +135,10 @@ export const parseIcsContent = (icsText: string, knownCourseNames: string[] = []
           date: startParsed.date,
           time: timeStr,
           room: locClean || undefined,
-          courseName: matchedCourse || undefined,
+          courseName: matchRes.course ? matchRes.course.name : undefined,
+          matchedCourseId: matchRes.course?.id,
+          matchedCourseColor: matchRes.course?.color,
+          matchScore: matchRes.score,
           notes: descClean || undefined,
           selected: true,
         });
@@ -164,9 +166,12 @@ export const parseIcsContent = (icsText: string, knownCourseNames: string[] = []
 };
 
 /**
- * Parse Notion / Generic CSV export
+ * Parse Notion / Generic CSV export with intelligent course matching
  */
-export const parseCsvContent = (csvText: string, knownCourseNames: string[] = []): ExternalCalendarEvent[] => {
+export const parseCsvContent = (
+  csvText: string,
+  availableCourses: Corso[] = []
+): ExternalCalendarEvent[] => {
   const lines = csvText.trim().split('\n');
   if (lines.length === 0) return [];
 
@@ -184,7 +189,6 @@ export const parseCsvContent = (csvText: string, knownCourseNames: string[] = []
     const row = lines[i].trim();
     if (!row) continue;
 
-    // Simple CSV row parser handling quotes
     const cols = row.split(',').map((c) => c.trim().replace(/^"|"$/g, ''));
     const title = titleIdx !== -1 ? cols[titleIdx] : cols[0];
     const dateStr = dateIdx !== -1 ? cols[dateIdx] : new Date().toISOString().split('T')[0];
@@ -208,12 +212,7 @@ export const parseCsvContent = (csvText: string, knownCourseNames: string[] = []
       }
     }
 
-    let matchedCourse = course;
-    if (!matchedCourse && knownCourseNames.length > 0) {
-      matchedCourse = knownCourseNames.find((cn) =>
-        title.toLowerCase().includes(cn.toLowerCase()) || (notes && notes.toLowerCase().includes(cn.toLowerCase()))
-      );
-    }
+    const matchRes = matchCourse(`${course || ''} ${title} ${notes || ''}`, availableCourses);
 
     events.push({
       id: `csv_${Date.now()}_${i}`,
@@ -222,7 +221,10 @@ export const parseCsvContent = (csvText: string, knownCourseNames: string[] = []
       date: formattedDate,
       time: timeStr.includes('-') ? timeStr : `${timeStr} - 11:00`,
       room: room || undefined,
-      courseName: matchedCourse || undefined,
+      courseName: matchRes.course ? matchRes.course.name : (course || undefined),
+      matchedCourseId: matchRes.course?.id,
+      matchedCourseColor: matchRes.course?.color,
+      matchScore: matchRes.score,
       notes: notes || undefined,
       selected: true,
     });

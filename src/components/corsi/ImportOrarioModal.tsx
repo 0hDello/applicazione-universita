@@ -7,6 +7,7 @@ import {
   DAYS_LIST,
   type ParsedTimetableSlot,
 } from '../../utils/ocrParser';
+import { matchCourse } from '../../utils/courseMatcher';
 import {
   Sparkles,
   Upload,
@@ -27,7 +28,7 @@ interface ImportOrarioModalProps {
 }
 
 export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose }) => {
-  const { corsi, addEvento, addLezioneToCorso } = useApp();
+  const { corsi, addEvento, addLezioneToCorso, updateCorso, addCorso } = useApp();
 
   const [activeTab, setActiveTab] = useState<'ocr' | 'bulk'>('ocr');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -46,7 +47,6 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
   const [importSuccess, setImportSuccess] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const knownCourseNames = corsi.map((c) => c.name);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,7 +73,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
       });
 
       setRawOcrText(text);
-      const slots = parseTimetableText(text, knownCourseNames);
+      const slots = parseTimetableText(text, corsi);
       setParsedSlots(slots);
       setIsProcessing(false);
     } catch (err) {
@@ -85,15 +85,15 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
 
   const handleReanalyzeOcrText = () => {
     if (!rawOcrText.trim()) return;
-    const slots = parseTimetableText(rawOcrText, knownCourseNames);
+    const slots = parseTimetableText(rawOcrText, corsi);
     setParsedSlots(slots);
   };
 
   const handleParseBulk = () => {
     if (!rawBulkText.trim()) return;
-    const slots = parseBulkFile(rawBulkText, knownCourseNames);
+    const slots = parseBulkFile(rawBulkText, corsi);
     if (slots.length === 0) {
-      const textSlots = parseTimetableText(rawBulkText, knownCourseNames);
+      const textSlots = parseTimetableText(rawBulkText, corsi);
       setParsedSlots(textSlots);
     } else {
       setParsedSlots(slots);
@@ -102,7 +102,36 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
 
   const handleSlotChange = (id: string, field: keyof ParsedTimetableSlot, value: any) => {
     setParsedSlots((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, [field]: value } : s))
+      prev.map((s) => {
+        if (s.id !== id) return s;
+        const updated = { ...s, [field]: value };
+        if (field === 'courseName') {
+          // Re-evaluate matching
+          const matchRes = matchCourse(value, corsi);
+          updated.matchedCourseId = matchRes.course?.id;
+          updated.matchedCourseColor = matchRes.course?.color;
+          updated.matchScore = matchRes.score;
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleSelectExistingCourseForSlot = (id: string, courseId: string) => {
+    const selectedCourse = corsi.find((c) => c.id === courseId);
+    if (!selectedCourse) return;
+    setParsedSlots((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              courseName: selectedCourse.name,
+              matchedCourseId: selectedCourse.id,
+              matchedCourseColor: selectedCourse.color,
+              matchScore: 1.0,
+            }
+          : s
+      )
     );
   };
 
@@ -111,14 +140,17 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
   };
 
   const handleAddNewSlot = () => {
-    const defaultCourse = corsi[0]?.name || 'Nuovo Corso';
+    const defaultCourse = corsi[0];
     const newSlot: ParsedTimetableSlot = {
       id: `slot_custom_${Date.now()}`,
       day: 'Lunedì',
       dayIndex: 0,
       startTime: '09:00',
       endTime: '11:00',
-      courseName: defaultCourse,
+      courseName: defaultCourse?.name || 'Nuovo Corso',
+      matchedCourseId: defaultCourse?.id,
+      matchedCourseColor: defaultCourse?.color,
+      matchScore: defaultCourse ? 1.0 : 0,
       room: 'Aula 1',
     };
     setParsedSlots((prev) => [...prev, newSlot]);
@@ -155,20 +187,68 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
     return dates;
   };
 
-  // Commit imported slots to Calendar events and Course lectures
+  // Commit imported slots to Calendar events and Course lectures with full synchronization
   const handleCommitImport = () => {
     if (parsedSlots.length === 0) return;
 
     parsedSlots.forEach((slot) => {
       const dates = getDatesForWeekday(slot.day, recurrenceWeeks);
 
-      // Find matching course or use slot courseName
-      const matchedCourse = corsi.find(
-        (c) => c.name.toLowerCase() === slot.courseName.toLowerCase()
+      // 1. Find matching course in existing study plan or by name
+      let matchedCourse = corsi.find(
+        (c) =>
+          c.id === slot.matchedCourseId ||
+          c.name.toLowerCase() === slot.courseName.toLowerCase()
       );
 
+      // If no matching course exists, auto-create it so it's tracked properly
+      if (!matchedCourse && slot.courseName && slot.courseName.length > 2) {
+        const newCorsoId = `corso_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+        addCorso({
+          code: 'GEN001',
+          name: slot.courseName,
+          professor: slot.professor || 'Docente da definire',
+          cfu: 6,
+          color: '#2563eb',
+          icon: 'BookOpen',
+          progress: 0,
+          notesOrganized: 0,
+          repetitionsDone: 0,
+          repetitionsTotal: 10,
+          attendanceMandatory: false,
+          minAttendancePercentage: 75,
+          topics: [],
+          lezioni: [],
+          aulaAbituale: slot.room,
+          orarioAbituale: `${slot.startTime} - ${slot.endTime}`,
+        });
+        matchedCourse = {
+          id: newCorsoId,
+          name: slot.courseName,
+          code: 'GEN001',
+          professor: slot.professor || '',
+          cfu: 6,
+          color: '#2563eb',
+          icon: 'BookOpen',
+          progress: 0,
+          notesOrganized: 0,
+          repetitionsDone: 0,
+          repetitionsTotal: 10,
+          topics: [],
+          lezioni: [],
+        };
+      }
+
+      // Update habitual room and timetable for the matched course
+      if (matchedCourse && slot.room) {
+        updateCorso(matchedCourse.id, {
+          aulaAbituale: slot.room,
+          orarioAbituale: `${slot.startTime} - ${slot.endTime}`,
+        });
+      }
+
       dates.forEach((dateStr, idx) => {
-        // 1. Add to Calendar
+        // 2. Add to Calendar with Course categorization and Custom Color support
         if (importTarget === 'both' || importTarget === 'calendar') {
           addEvento({
             title: slot.courseName,
@@ -177,11 +257,12 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
             time: `${slot.startTime} - ${slot.endTime}`,
             room: slot.room || 'Aula da definire',
             courseName: slot.courseName,
+            relatedCourseId: matchedCourse?.id,
             notes: slot.professor ? `Docente: ${slot.professor}` : '',
           });
         }
 
-        // 2. Add to Course Lectures Register
+        // 3. Add to Course Lectures Register for presence and attendance tracking
         if ((importTarget === 'both' || importTarget === 'course') && matchedCourse) {
           addLezioneToCorso(matchedCourse.id, {
             number: (matchedCourse.lezioni?.length || 0) + idx + 1,
@@ -205,8 +286,8 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-[#0d0d0f] rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-zinc-950 rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="p-6 border-b border-slate-100 dark:border-zinc-800 flex items-center justify-between shrink-0 bg-slate-50/50 dark:bg-zinc-950/60">
           <div className="flex items-center gap-3">
@@ -215,44 +296,44 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                Importa Orario delle Lezioni (OCR & Bulk)
+                Importa Orario delle Lezioni (OCR Screenshot & Testo)
               </h3>
               <p className="text-xs text-slate-400">
-                Carica uno screenshot dell'orario universitario per estrarre e pianificare automaticamente le lezioni.
+                Riconoscimento intelligente dei corsi dal tuo piano di studi, categorizzazione automatica e sincronizzazione presenze.
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
+            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-6 pt-4 flex gap-2 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-[#0d0d0f] shrink-0">
+        <div className="px-6 pt-4 flex gap-2 border-b border-slate-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 shrink-0">
           <button
             onClick={() => setActiveTab('ocr')}
             className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'ocr'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
             }`}
           >
             <FileImage className="w-4 h-4" />
-            <span>Da Screenshot (OCR Intelligente)</span>
+            <span>Screenshot / Foto Orario (OCR)</span>
           </button>
           <button
             onClick={() => setActiveTab('bulk')}
             className={`pb-3 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-2 ${
               activeTab === 'bulk'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-zinc-200'
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Importazione Testo / CSV / JSON</span>
+            <span>Testo Incollato / Tabella CSV</span>
           </button>
         </div>
 
@@ -264,21 +345,20 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-                Orario importato con successo!
+                Orario importato e sincronizzato con successo!
               </h4>
               <p className="text-xs text-slate-400 max-w-sm">
-                Tutte le lezioni sono state inserite nel calendario e associate ai tuoi corsi per le prossime {recurrenceWeeks} settimane.
+                I corsi e le lezioni sono stati inseriti nel calendario e sincronizzati nel registro presenze di ciascuna materia.
               </p>
             </div>
           ) : (
             <>
-              {/* TAB 1: OCR SCREENSHOT */}
+              {/* TAB 1: OCR IMAGE UPLOAD */}
               {activeTab === 'ocr' && (
                 <div className="flex flex-col gap-4">
-                  {/* Upload Box */}
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-slate-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-zinc-950/40 transition-colors"
+                    className="border-2 border-dashed border-slate-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-3 cursor-pointer bg-slate-50/50 dark:bg-zinc-900/40 transition-colors"
                   >
                     <input
                       type="file"
@@ -292,105 +372,91 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                     </div>
                     <div>
                       <p className="font-bold text-slate-900 dark:text-white">
-                        {selectedImage ? selectedImage.name : 'Seleziona o trascina lo screenshot dell\'orario'}
+                        {selectedImage ? selectedImage.name : 'Seleziona o trascina lo screenshot del tuo orario'}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        Supporta PNG, JPG, JPEG. Algoritmo ottimizzato per orari universitari italiani.
+                        PNG, JPG o screenshot del portale universitario o dell'app studenti.
                       </p>
                     </div>
                   </div>
 
-                  {/* Image Preview & Actions */}
+                  {/* Image Preview & OCR Action Button */}
                   {imagePreviewUrl && (
-                    <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex-wrap gap-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={imagePreviewUrl}
-                          alt="Preview orario"
-                          className="w-16 h-16 object-cover rounded-xl border border-slate-200 dark:border-zinc-700"
-                        />
-                        <div>
-                          <span className="font-bold text-slate-900 dark:text-white block">
-                            Screenshot caricato
-                          </span>
-                          <span className="text-[11px] text-slate-400">
-                            {selectedImage ? `${(selectedImage.size / 1024).toFixed(1)} KB` : ''}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {rawOcrText && (
-                          <button
-                            type="button"
-                            onClick={() => setShowRawTextEditor((prev) => !prev)}
-                            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 text-slate-700 dark:text-zinc-300 font-bold hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
-                          >
-                            <Edit3 className="w-3.5 h-3.5" />
-                            <span>{showRawTextEditor ? 'Nascondi Testo OCR' : 'Visualizza / Correggi Testo OCR'}</span>
-                          </button>
-                        )}
-
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-700 dark:text-zinc-300">
+                          Anteprima Immagine Selezionata
+                        </span>
                         <button
                           type="button"
                           onClick={handleStartOCR}
                           disabled={isProcessing}
-                          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition-all cursor-pointer"
+                          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold text-xs shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition-colors cursor-pointer"
                         >
                           {isProcessing ? (
                             <>
                               <Loader2 className="w-4 h-4 animate-spin" />
-                              <span>{ocrStatus || 'Elaborazione in corso...'}</span>
+                              <span>{ocrStatus}</span>
                             </>
                           ) : (
                             <>
                               <Sparkles className="w-4 h-4" />
-                              <span>{parsedSlots.length > 0 ? 'Riesegui OCR' : 'Estrai Lezioni con OCR'}</span>
+                              <span>Avvia Riconoscimento OCR</span>
                             </>
                           )}
                         </button>
                       </div>
-                    </div>
-                  )}
 
-                  {/* Progress bar during OCR */}
-                  {isProcessing && (
-                    <div className="flex flex-col gap-1.5">
-                      <div className="flex justify-between text-[11px] font-bold text-slate-500">
-                        <span>{ocrStatus}</span>
-                        <span>{ocrProgress}%</span>
-                      </div>
-                      <div className="h-2 rounded-full bg-slate-100 dark:bg-zinc-800 overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 transition-all duration-300 rounded-full"
-                          style={{ width: `${ocrProgress}%` }}
+                      {/* Progress Bar */}
+                      {isProcessing && (
+                        <div className="w-full bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                          <div
+                            className="bg-blue-600 h-full transition-all duration-300"
+                            style={{ width: `${ocrProgress}%` }}
+                          />
+                        </div>
+                      )}
+
+                      <div className="max-h-48 rounded-2xl overflow-hidden border border-slate-200 dark:border-zinc-800 bg-black/5 flex items-center justify-center">
+                        <img
+                          src={imagePreviewUrl}
+                          alt="Orario Preview"
+                          className="max-h-48 object-contain"
                         />
                       </div>
                     </div>
                   )}
 
-                  {/* RAW OCR TEXT EDITABLE AREA */}
-                  {showRawTextEditor && rawOcrText && (
-                    <div className="p-4 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex flex-col gap-2">
+                  {/* Raw OCR Text Correction Editor */}
+                  {rawOcrText && (
+                    <div className="p-3 bg-slate-50 dark:bg-zinc-900/60 rounded-2xl border border-slate-200 dark:border-zinc-800 flex flex-col gap-2">
                       <div className="flex items-center justify-between">
-                        <label className="font-bold text-slate-800 dark:text-zinc-200">
-                          Testo Riconosciuto da OCR (Modificabile)
-                        </label>
+                        <button
+                          type="button"
+                          onClick={() => setShowRawTextEditor(!showRawTextEditor)}
+                          className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 font-bold hover:underline"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>{showRawTextEditor ? 'Nascondi testo grezzo OCR' : 'Correggi manualmente testo OCR estratto'}</span>
+                        </button>
+
                         <button
                           type="button"
                           onClick={handleReanalyzeOcrText}
                           className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-600 text-white text-[11px] font-bold shadow-xs hover:bg-blue-700"
                         >
                           <RotateCcw className="w-3 h-3" />
-                          <span>⚡ Rianalizza Testo Modificato</span>
+                          <span>⚡ Rianalizza Testo</span>
                         </button>
                       </div>
-                      <textarea
-                        rows={5}
-                        value={rawOcrText}
-                        onChange={(e) => setRawOcrText(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px] focus:outline-none"
-                      />
+                      {showRawTextEditor && (
+                        <textarea
+                          rows={5}
+                          value={rawOcrText}
+                          onChange={(e) => setRawOcrText(e.target.value)}
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-mono text-[11px] focus:outline-none"
+                        />
+                      )}
                     </div>
                   )}
                 </div>
@@ -401,16 +467,16 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                 <div className="flex flex-col gap-4">
                   <div>
                     <label className="font-bold text-slate-900 dark:text-white block mb-1">
-                      Incolla tabella orario (CSV, TSV o JSON)
+                      Incolla tabella orario o elenco lezioni (Testo, CSV, TSV)
                     </label>
                     <p className="text-[11px] text-slate-400 mb-2">
-                      Formato CSV supportato: <code className="bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono">Giorno, Orario, Materia, Aula</code>
+                      Formato supportato: <code className="bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono">Giorno, Orario, Nome Corso, Aula</code>
                     </p>
                     <textarea
                       rows={6}
                       value={rawBulkText}
                       onChange={(e) => setRawBulkText(e.target.value)}
-                      placeholder="Lunedì, 09:00 - 11:00, Analisi Matematica 1, Aula Magna&#10;Martedì, 11:00 - 13:00, Fisica Generale, Lab 2&#10;Mercoledì, 14:00 - 16:00, Informatica, Aula 4B"
+                      placeholder="Lunedì, 09:00 - 11:00, Analisi Matematica T-A, Aula Magna&#10;Martedì, 11:00 - 13:00, Fisica Generale T-A, Aula 2.1&#10;Mercoledì, 14:00 - 16:00, Fondamenti di Chimica T, Aula 1.2&#10;Giovedì, 09:00 - 11:00, Geometria e Algebra T, Aula 2.1&#10;Venerdì, 11:00 - 13:00, Idoneità Lingua Inglese B-2, CLA"
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
@@ -420,18 +486,18 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                       type="button"
                       onClick={() =>
                         setRawBulkText(
-                          "Lunedì, 09:00 - 11:00, Ingegneria del Software, Aula A1\nMartedì, 11:00 - 13:00, Fisica Generale, Aula 3B\nMercoledì, 14:00 - 16:30, Analisi Matematica 1, Aula Magna\nGiovedì, 09:00 - 11:00, Basi di Dati, Lab 2\nVenerdì, 11:00 - 13:00, Algoritmi e Strutture Dati, Aula 4"
+                          "Lunedì, 09:00 - 11:00, Analisi Matematica T-A, Aula Magna\nMartedì, 11:00 - 13:00, Fisica Generale T-A, Aula 2.1\nMercoledì, 14:00 - 16:00, Fondamenti di Chimica T, Aula 1.2\nGiovedì, 09:00 - 11:00, Geometria e Algebra T, Aula 2.1\nVenerdì, 11:00 - 13:00, Idoneità Lingua Inglese B-2, CLA"
                         )
                       }
                       className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
                     >
-                      Carica esempio di orario tipo
+                      Carica esempio orario UniBo
                     </button>
 
                     <button
                       type="button"
                       onClick={handleParseBulk}
-                      className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors"
+                      className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors cursor-pointer"
                     >
                       Analizza Tabella
                     </button>
@@ -443,122 +509,136 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
               {parsedSlots.length > 0 && (
                 <div className="flex flex-col gap-4 pt-4 border-t border-slate-100 dark:border-zinc-800">
                   <div className="flex items-center justify-between flex-wrap gap-2">
-                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                      Slot Riconosciuti ({parsedSlots.length}) — Verifica e Modifica
-                    </h4>
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                        Lezioni Riconosciute ({parsedSlots.length}) — Categorizzazione Automatica
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Ogni slot è abbinato al corso corrispondente nel tuo piano di studi con il relativo tema colore.
+                      </p>
+                    </div>
                     <button
                       type="button"
                       onClick={handleAddNewSlot}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-slate-200 font-bold transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-bold transition-colors cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Aggiungi slot</span>
+                      <span>Aggiungi lezione</span>
                     </button>
                   </div>
 
                   {/* Editable slots list */}
-                  <div className="flex flex-col gap-2.5 max-h-72 overflow-y-auto pr-1">
-                    {parsedSlots.map((slot) => (
-                      <div
-                        key={slot.id}
-                        className="p-3 rounded-2xl bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-wrap sm:flex-nowrap"
-                      >
-                        {/* Day Selector */}
-                        <div className="w-28 shrink-0">
-                          <label className="text-[9px] font-bold text-slate-400 block uppercase">Giorno</label>
-                          <select
-                            value={slot.day}
-                            onChange={(e) => handleSlotChange(slot.id, 'day', e.target.value)}
-                            className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold"
-                          >
-                            {DAYS_LIST.map((d) => (
-                              <option key={d} value={d}>
-                                {d}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        {/* Times */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 block uppercase">Inizio</label>
-                            <input
-                              type="text"
-                              value={slot.startTime}
-                              onChange={(e) => handleSlotChange(slot.id, 'startTime', e.target.value)}
-                              className="w-16 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-center font-mono font-bold text-slate-900 dark:text-white"
-                            />
+                  <div className="flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1">
+                    {parsedSlots.map((slot) => {
+                      const isMatched = !!slot.matchedCourseId || (slot.matchScore && slot.matchScore > 0.4);
+                      return (
+                        <div
+                          key={slot.id}
+                          className="p-3.5 rounded-2xl bg-white dark:bg-zinc-900/80 border border-slate-200 dark:border-zinc-800 flex items-center gap-3 flex-wrap sm:flex-nowrap shadow-xs"
+                        >
+                          {/* Day Selector */}
+                          <div className="w-28 shrink-0">
+                            <label className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Giorno</label>
+                            <select
+                              value={slot.day}
+                              onChange={(e) => handleSlotChange(slot.id, 'day', e.target.value)}
+                              className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold text-xs"
+                            >
+                              {DAYS_LIST.map((d) => (
+                                <option key={d} value={d}>
+                                  {d}
+                                </option>
+                              ))}
+                            </select>
                           </div>
-                          <span className="text-slate-400 mt-3">-</span>
-                          <div>
-                            <label className="text-[9px] font-bold text-slate-400 block uppercase">Fine</label>
-                            <input
-                              type="text"
-                              value={slot.endTime}
-                              onChange={(e) => handleSlotChange(slot.id, 'endTime', e.target.value)}
-                              className="w-16 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-center font-mono font-bold text-slate-900 dark:text-white"
-                            />
-                          </div>
-                        </div>
 
-                        {/* Course Name with Course Preset Dropdown or Input */}
-                        <div className="flex-1 min-w-[140px]">
-                          <label className="text-[9px] font-bold text-slate-400 block uppercase">Materia / Corso</label>
-                          <div className="flex gap-1.5">
-                            <input
-                              type="text"
-                              value={slot.courseName}
-                              onChange={(e) => handleSlotChange(slot.id, 'courseName', e.target.value)}
-                              placeholder="Nome corso..."
-                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold"
-                            />
-                            {corsi.length > 0 && (
+                          {/* Times */}
+                          <div className="flex items-center gap-1 shrink-0">
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Inizio</label>
+                              <input
+                                type="text"
+                                value={slot.startTime}
+                                onChange={(e) => handleSlotChange(slot.id, 'startTime', e.target.value)}
+                                className="w-16 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-center font-mono font-bold text-slate-900 dark:text-white text-xs"
+                              />
+                            </div>
+                            <span className="text-slate-400 mt-3">-</span>
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Fine</label>
+                              <input
+                                type="text"
+                                value={slot.endTime}
+                                onChange={(e) => handleSlotChange(slot.id, 'endTime', e.target.value)}
+                                className="w-16 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-center font-mono font-bold text-slate-900 dark:text-white text-xs"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Course Association Selector with Color Badge */}
+                          <div className="flex-1 min-w-[180px]">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">
+                                Corso Associato
+                              </label>
+                              {isMatched && (
+                                <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                  <span
+                                    className="w-2 h-2 rounded-full shrink-0"
+                                    style={{ backgroundColor: slot.matchedCourseColor || '#10b981' }}
+                                  />
+                                  Riconosciuto ({Math.round((slot.matchScore || 0.9) * 100)}%)
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
                               <select
+                                value={slot.matchedCourseId || ''}
                                 onChange={(e) => {
                                   if (e.target.value) {
-                                    handleSlotChange(slot.id, 'courseName', e.target.value);
+                                    handleSelectExistingCourseForSlot(slot.id, e.target.value);
                                   }
                                 }}
-                                className="w-8 px-1 py-1.5 rounded-lg bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 text-slate-600 dark:text-zinc-300 font-bold"
-                                title="Seleziona corso esistente"
+                                className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold text-xs"
                               >
-                                <option value="">▼</option>
                                 {corsi.map((c) => (
-                                  <option key={c.id} value={c.name}>
-                                    {c.name}
+                                  <option key={c.id} value={c.id}>
+                                    {c.name} ({c.cfu} CFU)
                                   </option>
                                 ))}
+                                {!slot.matchedCourseId && (
+                                  <option value="">{slot.courseName} (Nuovo corso)</option>
+                                )}
                               </select>
-                            )}
+                            </div>
+                          </div>
+
+                          {/* Room */}
+                          <div className="w-28 shrink-0">
+                            <label className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Aula</label>
+                            <input
+                              type="text"
+                              value={slot.room}
+                              onChange={(e) => handleSlotChange(slot.id, 'room', e.target.value)}
+                              placeholder="Aula..."
+                              className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white text-xs"
+                            />
+                          </div>
+
+                          {/* Remove Slot */}
+                          <div className="pt-3 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveSlot(slot.id)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                              title="Rimuovi"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-
-                        {/* Room */}
-                        <div className="w-28 shrink-0">
-                          <label className="text-[9px] font-bold text-slate-400 block uppercase">Aula</label>
-                          <input
-                            type="text"
-                            value={slot.room}
-                            onChange={(e) => handleSlotChange(slot.id, 'room', e.target.value)}
-                            placeholder="Aula..."
-                            className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white"
-                          />
-                        </div>
-
-                        {/* Remove Slot */}
-                        <div className="pt-3 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSlot(slot.id)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
-                            title="Rimuovi slot"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
 
                   {/* Import Configuration Panel */}
@@ -566,31 +646,31 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                     <div className="flex items-center gap-4 flex-wrap">
                       <div>
                         <label className="font-bold text-slate-900 dark:text-white block mb-1">
-                          Settimane di ripetizione
+                          Settimane del semestre
                         </label>
                         <select
                           value={recurrenceWeeks}
                           onChange={(e) => setRecurrenceWeeks(parseInt(e.target.value))}
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white"
+                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white text-xs"
                         >
                           <option value="1">1 sola settimana (solo prossima)</option>
                           <option value="6">6 settimane</option>
                           <option value="12">12 settimane (1 Semestre standard)</option>
-                          <option value="16">16 settimane</option>
+                          <option value="14">14 settimane (Semestre completo)</option>
                           <option value="24">24 settimane (Anno accademico)</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="font-bold text-slate-900 dark:text-white block mb-1">
-                          Destinazione importazione
+                          Sincronizzazione
                         </label>
                         <select
                           value={importTarget}
                           onChange={(e) => setImportTarget(e.target.value as any)}
-                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white"
+                          className="px-3 py-1.5 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 font-bold text-slate-900 dark:text-white text-xs"
                         >
-                          <option value="both">📅 Calendario + 📚 Registro Corsi</option>
+                          <option value="both">📅 Calendario + 📚 Registro Presenze Corsi</option>
                           <option value="calendar">Solo 📅 Calendario</option>
                           <option value="course">Solo 📚 Registro Corsi</option>
                         </select>
@@ -603,7 +683,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                       className="px-6 py-2.5 rounded-2xl bg-blue-600 text-white font-extrabold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-all flex items-center gap-2 cursor-pointer"
                     >
                       <Check className="w-4 h-4" />
-                      <span>Conferma e Importa nell'App</span>
+                      <span>Sincronizza {parsedSlots.length} Corsi nell'App</span>
                     </button>
                   </div>
                 </div>
