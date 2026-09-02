@@ -4,6 +4,7 @@ import type { EventoCalendario, EventCategory } from '../../types';
 import { TimeSlotPicker } from '../common/TimeSlotPicker';
 import { openGoogleMaps } from '../../utils/mapUtils';
 import { ImportOrarioModal } from '../corsi/ImportOrarioModal';
+import { ImportCalendarioEsternoModal } from './ImportCalendarioEsternoModal';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
@@ -21,6 +22,7 @@ import {
   Copy,
   ExternalLink,
   Repeat,
+  Globe,
 } from 'lucide-react';
 
 export const CalendarioView: React.FC = () => {
@@ -41,6 +43,7 @@ export const CalendarioView: React.FC = () => {
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewingModalEvent, setViewingModalEvent] = useState<EventoCalendario | null>(null);
   const [isImportingOrario, setIsImportingOrario] = useState<boolean>(false);
+  const [isImportingExternalCalendar, setIsImportingExternalCalendar] = useState<boolean>(false);
 
   // New Event Form State
   const [isAddingEvent, setIsAddingEvent] = useState(false);
@@ -234,7 +237,7 @@ export const CalendarioView: React.FC = () => {
       case 'Studio':
         return 'bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800/70';
       default:
-        return 'bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700';
+        return 'bg-slate-50 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 border-slate-200 dark:border-zinc-700';
     }
   };
 
@@ -251,6 +254,38 @@ export const CalendarioView: React.FC = () => {
       default:
         return 'bg-slate-400';
     }
+  };
+
+  // Helper to dynamically style event with Course Custom Theme Color
+  const getEventTheme = (ev: EventoCalendario) => {
+    if (ev.category === 'Lezione' && ev.courseName) {
+      const matched = corsi.find(
+        (c) =>
+          c.name.toLowerCase() === ev.courseName?.toLowerCase() ||
+          ev.title.toLowerCase().includes(c.name.toLowerCase())
+      );
+      if (matched && matched.color) {
+        return {
+          isCustom: true,
+          color: matched.color,
+          badgeClass: 'border',
+          badgeStyle: {
+            backgroundColor: `${matched.color}15`,
+            borderColor: `${matched.color}50`,
+            color: matched.color,
+          },
+          dotStyle: { backgroundColor: matched.color },
+        };
+      }
+    }
+
+    return {
+      isCustom: false,
+      color: null,
+      badgeClass: `border ${getCategoryBadgeClass(ev.category)}`,
+      badgeStyle: undefined,
+      dotStyle: undefined,
+    };
   };
 
   const getEventsForDay = (day: number) => {
@@ -277,7 +312,7 @@ export const CalendarioView: React.FC = () => {
       {/* Main Calendar View Area */}
       <div className="flex-1 flex flex-col gap-6 min-w-0">
         {/* Calendar Header Controls - Clean & Perfectly Aligned */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-100 dark:border-slate-800 shadow-xs flex items-center justify-between gap-4 flex-wrap">
+        <div className="bg-white dark:bg-zinc-950 rounded-3xl p-5 border border-slate-100 dark:border-zinc-800 shadow-xs flex items-center justify-between gap-4 flex-wrap">
           {/* Title & Subtitle */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-900 shrink-0">
@@ -297,42 +332,45 @@ export const CalendarioView: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Controls: Navigation + Tab Switcher + Add Button */}
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Prev / Today / Next */}
-            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-2xs">
+          {/* Right Controls: Navigation + Today + Tab Switcher + External Import + OCR + Add Button */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* Prev / Next */}
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-zinc-900 p-1 rounded-2xl border border-slate-200/60 dark:border-zinc-800">
               <button
                 onClick={handlePrev}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors"
                 title="Precedente"
               >
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={handleToday}
-                className="px-3 py-1 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 transition-colors"
-              >
-                Oggi
-              </button>
-              <button
                 onClick={handleNext}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-700 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-colors"
                 title="Successivo"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
 
+            {/* Prominent OGGI Button with exact same visual weight as tabs */}
+            <button
+              onClick={handleToday}
+              className="px-3.5 py-1.5 rounded-2xl text-xs font-bold bg-white dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-black border border-slate-200/80 dark:border-zinc-800 shadow-xs transition-colors cursor-pointer"
+              title="Torna a oggi"
+            >
+              Oggi
+            </button>
+
             {/* View Switcher Tabs */}
-            <div className="flex bg-slate-100 dark:bg-slate-800/80 p-1 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
+            <div className="flex bg-slate-100 dark:bg-zinc-900 p-1 rounded-2xl border border-slate-200/60 dark:border-zinc-800">
               {(['Mese', 'Settimana', 'Giorno'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
                     activeTab === tab
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      ? 'bg-white dark:bg-black text-blue-600 dark:text-blue-400 shadow-xs font-extrabold'
+                      : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   {tab}
@@ -340,20 +378,30 @@ export const CalendarioView: React.FC = () => {
               ))}
             </div>
 
+            {/* External Calendar Import Button */}
+            <button
+              onClick={() => setIsImportingExternalCalendar(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 text-xs font-bold hover:bg-purple-100 transition-colors shadow-xs cursor-pointer"
+              title="Importa da Google Calendar, Notion o file .ics"
+            >
+              <Globe className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="hidden sm:inline">Importa Calendario</span>
+            </button>
+
             {/* OCR Timetable Import Button */}
             <button
               onClick={() => setIsImportingOrario(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-xs"
-              title="Importa da screenshot o file"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-slate-100 dark:bg-zinc-900 text-slate-700 dark:text-zinc-200 text-xs font-bold hover:bg-slate-200 dark:hover:bg-zinc-800 transition-colors shadow-xs cursor-pointer"
+              title="Importa da screenshot"
             >
               <Sparkles className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span className="hidden sm:inline">Importa orario (OCR)</span>
+              <span className="hidden sm:inline">Orario OCR</span>
             </button>
 
             {/* Main Add Button */}
             <button
               onClick={() => setIsAddingEvent(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all hover:scale-102"
+              className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-600/20 transition-all hover:scale-102 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Aggiungi evento</span>
@@ -439,43 +487,47 @@ export const CalendarioView: React.FC = () => {
 
                     {/* Day Events Pills with Direct Trash & Click-to-open Modal */}
                     <div className="flex flex-col gap-1 overflow-y-auto max-h-[85px] pr-0.5">
-                      {dayEvents.map((ev) => (
-                        <div
-                          key={ev.id}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData('text/plain', ev.id);
-                            setDraggedEventId(ev.id);
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setViewingModalEvent(ev);
-                          }}
-                          className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left border transition-all hover:scale-98 shadow-2xs cursor-pointer group/ev flex items-center justify-between gap-1 ${getCategoryBadgeClass(
-                            ev.category
-                          )}`}
-                        >
-                          <div className="min-w-0 flex-1 truncate">
-                            <div className="truncate font-extrabold">{ev.title}</div>
-                            <div className="text-[9px] opacity-80 truncate flex items-center gap-1">
-                              <span>{ev.time.split(' ')[0]}</span>
-                              {ev.room && <span>• {ev.room}</span>}
-                            </div>
-                          </div>
-
-                          {/* Quick 1-Click Delete on Hover */}
-                          <button
+                      {dayEvents.map((ev) => {
+                        const theme = getEventTheme(ev);
+                        return (
+                          <div
+                            key={ev.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', ev.id);
+                              setDraggedEventId(ev.id);
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
-                              deleteEvento(ev.id);
+                              setViewingModalEvent(ev);
                             }}
-                            className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
-                            title="Elimina evento"
+                            style={theme.badgeStyle}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-bold text-left transition-all hover:scale-98 shadow-2xs cursor-pointer group/ev flex items-center justify-between gap-1 ${
+                              theme.badgeClass
+                            }`}
                           >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+                            <div className="min-w-0 flex-1 truncate">
+                              <div className="truncate font-extrabold">{ev.title}</div>
+                              <div className="text-[9px] opacity-80 truncate flex items-center gap-1">
+                                <span>{ev.time.split(' ')[0]}</span>
+                                {ev.room && <span>• {ev.room}</span>}
+                              </div>
+                            </div>
+
+                            {/* Quick 1-Click Delete on Hover */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteEvento(ev.id);
+                              }}
+                              className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
+                              title="Elimina evento"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
@@ -593,40 +645,44 @@ export const CalendarioView: React.FC = () => {
                           }}
                           className="p-1 border-r border-slate-100 dark:border-slate-800/50 hover:bg-blue-50/20 dark:hover:bg-slate-800/30 transition-colors flex flex-col gap-1 cursor-pointer"
                         >
-                          {dayEvents.map((ev) => (
-                            <div
-                              key={ev.id}
-                              draggable
-                              onDragStart={(e) => {
-                                e.dataTransfer.setData('text/plain', ev.id);
-                                setDraggedEventId(ev.id);
-                              }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setViewingModalEvent(ev);
-                              }}
-                              className={`p-2 rounded-xl text-left text-[10px] font-bold border shadow-2xs transition-transform hover:scale-98 cursor-pointer group/ev flex items-start justify-between gap-1 ${getCategoryBadgeClass(
-                                ev.category
-                              )}`}
-                            >
-                              <div className="min-w-0 flex-1">
-                                <div className="font-extrabold truncate">{ev.title}</div>
-                                <div className="text-[9px] opacity-80 truncate">{ev.time}</div>
-                                {ev.room && <div className="text-[9px] opacity-75 truncate font-normal">📍 {ev.room}</div>}
-                              </div>
-
-                              <button
+                          {dayEvents.map((ev) => {
+                            const theme = getEventTheme(ev);
+                            return (
+                              <div
+                                key={ev.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.dataTransfer.setData('text/plain', ev.id);
+                                  setDraggedEventId(ev.id);
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  deleteEvento(ev.id);
+                                  setViewingModalEvent(ev);
                                 }}
-                                className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
-                                title="Elimina evento"
+                                style={theme.badgeStyle}
+                                className={`p-2 rounded-xl text-left text-[10px] font-bold shadow-2xs transition-transform hover:scale-98 cursor-pointer group/ev flex items-start justify-between gap-1 ${
+                                  theme.badgeClass
+                                }`}
                               >
-                                <Trash2 className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ))}
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-extrabold truncate">{ev.title}</div>
+                                  <div className="text-[9px] opacity-80 truncate">{ev.time}</div>
+                                  {ev.room && <div className="text-[9px] opacity-75 truncate font-normal">📍 {ev.room}</div>}
+                                </div>
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    deleteEvento(ev.id);
+                                  }}
+                                  className="opacity-0 group-hover/ev:opacity-100 p-0.5 rounded text-red-500 hover:bg-red-100 dark:hover:bg-red-950/60 transition-opacity shrink-0"
+                                  title="Elimina evento"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}
@@ -680,13 +736,15 @@ export const CalendarioView: React.FC = () => {
                   </button>
                 </div>
               ) : (
-                getEventsForExactDate(selectedDateYMD).map((ev) => (
-                  <div
-                    key={ev.id}
-                    onClick={() => setViewingModalEvent(ev)}
-                    className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4 cursor-pointer hover:border-blue-400 transition-all"
-                  >
-                    <div className="flex items-start gap-4">
+                getEventsForExactDate(selectedDateYMD).map((ev) => {
+                  const theme = getEventTheme(ev);
+                  return (
+                    <div
+                      key={ev.id}
+                      onClick={() => setViewingModalEvent(ev)}
+                      className="p-4 rounded-2xl bg-slate-50/80 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 flex items-start justify-between gap-4 cursor-pointer hover:border-blue-400 transition-all"
+                    >
+                      <div className="flex items-start gap-4">
                       <div className="flex flex-col items-center justify-center p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-2xs min-w-[75px]">
                         <Clock className="w-4 h-4 text-blue-600 mb-1" />
                         <span className="text-xs font-extrabold text-slate-900 dark:text-white text-center leading-tight">
@@ -699,11 +757,17 @@ export const CalendarioView: React.FC = () => {
 
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className={`w-2.5 h-2.5 rounded-full ${getDotColor(ev.category)}`} />
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${theme.isCustom ? '' : getDotColor(ev.category)}`}
+                            style={theme.dotStyle}
+                          />
                           <h5 className="text-sm font-extrabold text-slate-900 dark:text-white">
                             {ev.title}
                           </h5>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${getCategoryBadgeClass(ev.category)}`}>
+                          <span
+                            style={theme.badgeStyle}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${theme.badgeClass}`}
+                          >
                             {ev.category}
                           </span>
                           {ev.recurrence && (
@@ -768,7 +832,8 @@ export const CalendarioView: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                ))
+                );
+              })
               )}
             </div>
           </div>
@@ -1278,9 +1343,14 @@ export const CalendarioView: React.FC = () => {
         </div>
       )}
 
-      {/* IMPORT ORARIO MODAL */}
+      {/* IMPORT ORARIO OCR MODAL */}
       {isImportingOrario && (
         <ImportOrarioModal onClose={() => setIsImportingOrario(false)} />
+      )}
+
+      {/* IMPORT EXTERNAL CALENDAR MODAL */}
+      {isImportingExternalCalendar && (
+        <ImportCalendarioEsternoModal onClose={() => setIsImportingExternalCalendar(false)} />
       )}
     </div>
   );

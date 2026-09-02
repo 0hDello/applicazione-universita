@@ -63,6 +63,7 @@ export interface Corso {
   topics: TopicItem[];
   lezioni?: Lezione[];
   semestre?: string;
+  year?: number; // 1, 2, 3
   aulaAbituale?: string;
   orarioAbituale?: string;
   linkAulaVirtuale?: string;

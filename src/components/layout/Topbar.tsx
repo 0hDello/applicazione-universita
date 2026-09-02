@@ -14,6 +14,8 @@ import {
   Clock,
   Sparkles,
   Info,
+  User,
+  LogOut,
 } from 'lucide-react';
 
 export const Topbar: React.FC = () => {
@@ -56,7 +58,7 @@ export const Topbar: React.FC = () => {
       case 'calendario':
         return 'Ecco il tuo piano di oggi.';
       case 'corsi':
-        return 'Ecco tutti i tuoi corsi.';
+        return 'Ecco tutti i tuoi corsi e piano di studi.';
       case 'esami':
         return 'Ecco tutti i tuoi esami in un unico posto.';
       case 'compiti':
@@ -68,7 +70,7 @@ export const Topbar: React.FC = () => {
       case 'obiettivi':
         return 'Ogni giorno un passo verso i tuoi obiettivi.';
       case 'impostazioni':
-        return 'Ecco le tue impostazioni personalizzate.';
+        return 'Ecco le tue impostazioni e preferenze.';
       default:
         return 'Organizza. Studia. Raggiungi.';
     }
@@ -92,7 +94,7 @@ export const Topbar: React.FC = () => {
   const isDark = userSettings.theme === 'dark';
 
   return (
-    <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800 px-8 flex items-center justify-between sticky top-0 z-30 transition-colors">
+    <header className="h-20 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-slate-100 dark:border-zinc-800 px-8 flex items-center justify-between sticky top-0 z-30 transition-colors">
       {/* Title & Greeting */}
       <div>
         <h2 className="text-xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
@@ -103,8 +105,8 @@ export const Topbar: React.FC = () => {
         </p>
       </div>
 
-      {/* Actions: Search, Notifications, Profile */}
-      <div className="flex items-center gap-4">
+      {/* Actions: Search, Theme Switcher, Notifications, Profile */}
+      <div className="flex items-center gap-3">
         {/* Search Input */}
         <div className="relative w-60 hidden md:block">
           <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -113,9 +115,23 @@ export const Topbar: React.FC = () => {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Cerca corsi, lezioni, esami..."
-            className="w-full pl-10 pr-4 py-2 rounded-full text-xs bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+            className="w-full pl-10 pr-4 py-2 rounded-full text-xs bg-slate-50 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
           />
         </div>
+
+        {/* Dedicated Light / Dark Theme Toggle Button */}
+        <button
+          onClick={() => updateUserSettings({ theme: isDark ? 'light' : 'dark' })}
+          className="relative w-9 h-9 rounded-full bg-slate-50 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-center text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+          title={isDark ? 'Passa alla modalità chiara' : 'Passa alla modalità scura'}
+          aria-label="Toggle tema chiaro/scuro"
+        >
+          {isDark ? (
+            <Sun className="w-4 h-4 text-amber-400 hover:rotate-90 transition-transform duration-300" />
+          ) : (
+            <Moon className="w-4 h-4 text-purple-600 hover:-rotate-12 transition-transform duration-300" />
+          )}
+        </button>
 
         {/* Notification Bell Dropdown */}
         <div className="relative" ref={notifRef}>
@@ -124,12 +140,12 @@ export const Topbar: React.FC = () => {
               setIsOpenNotif(!isOpenNotif);
               setIsOpenProfile(false);
             }}
-            className="relative w-9 h-9 rounded-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-colors"
+            className="relative w-9 h-9 rounded-full bg-slate-50 dark:bg-zinc-900 border border-slate-200/80 dark:border-zinc-800 flex items-center justify-center text-slate-600 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             title="Notifiche"
           >
             <Bell className="w-4 h-4" />
             {unreadCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-slate-900 animate-pulse">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-blue-600 text-white text-[10px] font-extrabold flex items-center justify-center ring-2 ring-white dark:ring-black animate-pulse">
                 {unreadCount}
               </span>
             )}
@@ -137,8 +153,8 @@ export const Topbar: React.FC = () => {
 
           {/* Notifications Panel */}
           {isOpenNotif && (
-            <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-2xl p-4 flex flex-col gap-3 z-50 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+            <div className="absolute right-0 mt-3 w-80 sm:w-96 rounded-3xl bg-white dark:bg-zinc-950 border border-slate-100 dark:border-zinc-800 shadow-2xl p-4 flex flex-col gap-3 z-50 animate-in fade-in zoom-in-95">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-zinc-800 pb-3">
                 <div className="flex items-center gap-2">
                   <Bell className="w-4 h-4 text-blue-600" />
                   <h4 className="text-sm font-extrabold text-slate-900 dark:text-white">Notifiche</h4>
@@ -177,11 +193,11 @@ export const Topbar: React.FC = () => {
                       }}
                       className={`p-3 rounded-2xl border transition-all cursor-pointer flex items-start gap-3 ${
                         notif.read
-                          ? 'bg-slate-50/50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800/60 opacity-75'
+                          ? 'bg-slate-50/50 dark:bg-zinc-900/40 border-slate-100 dark:border-zinc-800/60 opacity-75'
                           : 'bg-blue-50/40 dark:bg-blue-950/30 border-blue-100 dark:border-blue-900/60'
                       }`}
                     >
-                      <div className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-2xs flex items-center justify-center shrink-0 mt-0.5">
+                      <div className="w-8 h-8 rounded-xl bg-white dark:bg-zinc-900 shadow-2xs flex items-center justify-center shrink-0 mt-0.5">
                         {getNotifIcon(notif.type)}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -193,7 +209,7 @@ export const Topbar: React.FC = () => {
                             {notif.time}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 leading-snug">
+                        <p className="text-[11px] text-slate-600 dark:text-zinc-300 mt-0.5 leading-snug">
                           {notif.message}
                         </p>
                       </div>
@@ -205,14 +221,14 @@ export const Topbar: React.FC = () => {
           )}
         </div>
 
-        {/* User Profile Dropdown */}
+        {/* User Profile Dropdown Button */}
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => {
               setIsOpenProfile(!isOpenProfile);
               setIsOpenNotif(false);
             }}
-            className="flex items-center gap-3 pl-2 border-l border-slate-200/80 dark:border-slate-800 text-left hover:opacity-80 transition-opacity"
+            className="flex items-center gap-2.5 pl-2 border-l border-slate-200/80 dark:border-zinc-800 text-left hover:opacity-85 transition-opacity cursor-pointer"
           >
             <div className="w-9 h-9 rounded-full bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
               {userSettings.name.split(' ').map((n) => n[0]).join('')}
@@ -221,7 +237,7 @@ export const Topbar: React.FC = () => {
               <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
                 {userSettings.name}
               </h4>
-              <p className="text-[10px] text-slate-400 font-semibold">
+              <p className="text-[10px] text-slate-400 font-semibold truncate max-w-[120px]">
                 {userSettings.role}
               </p>
             </div>
@@ -230,9 +246,9 @@ export const Topbar: React.FC = () => {
 
           {/* Profile Menu Popup */}
           {isOpenProfile && (
-            <div className="absolute right-0 mt-3 w-64 rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-2xl p-3 flex flex-col gap-2 z-50 animate-in fade-in zoom-in-95">
+            <div className="absolute right-0 mt-3 w-64 rounded-3xl bg-white dark:bg-zinc-950 border border-slate-100 dark:border-zinc-800 shadow-2xl p-3 flex flex-col gap-2 z-50 animate-in fade-in zoom-in-95">
               {/* User Header */}
-              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 flex flex-col gap-1">
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 flex flex-col gap-1">
                 <span className="text-xs font-extrabold text-slate-900 dark:text-white">
                   {userSettings.name}
                 </span>
@@ -245,16 +261,27 @@ export const Topbar: React.FC = () => {
               </div>
 
               {/* Navigation Actions */}
-              <div className="flex flex-col gap-1 text-xs font-bold text-slate-700 dark:text-slate-200">
+              <div className="flex flex-col gap-1 text-xs font-bold text-slate-700 dark:text-zinc-200">
                 <button
                   onClick={() => {
                     setCurrentView('impostazioni');
                     setIsOpenProfile(false);
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors text-left"
+                >
+                  <User className="w-4 h-4 text-slate-400" />
+                  <span>Profilo Studente</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentView('impostazioni');
+                    setIsOpenProfile(false);
+                  }}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors text-left"
                 >
                   <Settings className="w-4 h-4 text-slate-400" />
-                  <span>Impostazioni & Profilo</span>
+                  <span>Impostazioni & Preferenze</span>
                 </button>
 
                 <button
@@ -262,7 +289,7 @@ export const Topbar: React.FC = () => {
                     setCurrentView('corsi');
                     setIsOpenProfile(false);
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors text-left"
                 >
                   <BookOpen className="w-4 h-4 text-slate-400" />
                   <span>I Miei Corsi</span>
@@ -273,25 +300,25 @@ export const Topbar: React.FC = () => {
                     setCurrentView('esami');
                     setIsOpenProfile(false);
                   }}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-zinc-900 transition-colors text-left"
                 >
                   <GraduationCap className="w-4 h-4 text-slate-400" />
                   <span>Appelli & Esami</span>
                 </button>
 
-                <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+                <div className="border-t border-slate-100 dark:border-zinc-800 my-1" />
 
                 <button
                   onClick={() => {
-                    updateUserSettings({ theme: isDark ? 'light' : 'dark' });
+                    if (window.confirm('Vuoi ripristinare i dati iniziali di esempio?')) {
+                      localStorage.clear();
+                      window.location.reload();
+                    }
                   }}
-                  className="flex items-center justify-between px-3 py-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors text-left"
                 >
-                  <div className="flex items-center gap-2.5">
-                    {isDark ? <Sun className="w-4 h-4 text-amber-500" /> : <Moon className="w-4 h-4 text-purple-400" />}
-                    <span>Tema {isDark ? 'Chiaro' : 'Scuro'}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-semibold">Switch</span>
+                  <LogOut className="w-4 h-4" />
+                  <span>Reset / Logout</span>
                 </button>
               </div>
             </div>
@@ -301,4 +328,3 @@ export const Topbar: React.FC = () => {
     </header>
   );
 };
-

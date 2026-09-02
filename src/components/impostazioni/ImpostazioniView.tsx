@@ -17,6 +17,7 @@ import {
   DownloadCloud,
   CheckCircle2,
   AlertCircle,
+  BookMarked,
 } from 'lucide-react';
 
 import {
@@ -25,6 +26,7 @@ import {
   ANNI_ACCADEMICI,
   ANNI_DI_CORSO,
 } from '../../data/universityData';
+import { DEGREE_PROGRAMS } from '../../data/degreePrograms';
 
 interface UpdateInfo {
   status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error' | 'dev';
@@ -34,7 +36,7 @@ interface UpdateInfo {
 }
 
 export const ImpostazioniView: React.FC = () => {
-  const { userSettings, updateUserSettings } = useApp();
+  const { userSettings, updateUserSettings, corsi, loadPredefinedCoursesForProgram } = useApp();
 
   const [formData, setFormData] = useState({ ...userSettings });
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -268,9 +270,28 @@ export const ImpostazioniView: React.FC = () => {
               </label>
               <select
                 value={formData.studyProgram}
-                onChange={(e) => setFormData({ ...formData, studyProgram: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const matched = DEGREE_PROGRAMS.find((p) => p.name === val || p.shortName === val);
+                  if (matched) {
+                    setFormData({
+                      ...formData,
+                      studyProgram: matched.name,
+                      university: matched.university,
+                    });
+                  } else {
+                    setFormData({ ...formData, studyProgram: val });
+                  }
+                }}
                 className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
+                <optgroup label="Corsi di Laurea con Piano di Studi Integrato">
+                  {DEGREE_PROGRAMS.map((prog) => (
+                    <option key={prog.id} value={prog.name}>
+                      ★ {prog.name}
+                    </option>
+                  ))}
+                </optgroup>
                 {CORSI_DI_STUDIO_CATEGORIE.map((cat) => (
                   <optgroup key={cat.category} label={cat.category}>
                     {cat.courses.map((course) => (
@@ -327,6 +348,53 @@ export const ImpostazioniView: React.FC = () => {
               />
             </div>
           </div>
+
+          {/* DEGREE PROGRAM PREDEFINED COURSES LOADER BANNER */}
+          {(() => {
+            const matchedProg = DEGREE_PROGRAMS.find(
+              (p) =>
+                p.name.toLowerCase() === formData.studyProgram?.toLowerCase() ||
+                formData.studyProgram?.toLowerCase().includes(p.shortName.toLowerCase()) ||
+                formData.studyProgram?.toLowerCase().includes('ingegneria meccanica')
+            );
+
+            if (!matchedProg) return null;
+
+            return (
+              <div className="p-4 rounded-2xl bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/60 flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-2.5">
+                  <BookMarked className="w-5 h-5 text-purple-600 dark:text-purple-400 shrink-0" />
+                  <div>
+                    <p className="text-xs font-bold text-purple-950 dark:text-purple-200">
+                      Piano di Studi Ufficiale Disponibile ({matchedProg.courses.length} insegnamenti - {matchedProg.totalCFU} CFU)
+                    </p>
+                    <p className="text-[10px] text-purple-700 dark:text-purple-400">
+                      {matchedProg.name}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (
+                      corsi.length === 0 ||
+                      window.confirm(
+                        `Vuoi caricare i corsi per "${matchedProg.shortName}"? I corsi verranno aggiunti al tuo piano di studi.`
+                      )
+                    ) {
+                      loadPredefinedCoursesForProgram(matchedProg.id, corsi.length === 0);
+                      setSaveSuccess(true);
+                      setTimeout(() => setSaveSuccess(false), 2000);
+                    }
+                  }}
+                  className="px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                >
+                  ⚡ Carica Corsi nel Piano di Studi
+                </button>
+              </div>
+            );
+          })()}
 
           <p className="text-[10px] text-slate-400 font-medium">
             ⓘ Queste informazioni vengono utilizzate per personalizzare il tuo piano di studi.

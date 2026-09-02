@@ -1,5 +1,27 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.14] - 2026-09-02
+
+### Nuove Funzionalità e Miglioramenti
+
+- **Corsi Predefiniti per Indirizzo di Studi (UniBo Ingegneria Meccanica & Altri)**:
+  - Catalogo ufficiale integrato con i corsi di *Ingegneria Meccanica - Università di Bologna (UniBo)* (1°, 2° e 3° anno con CFU, docenti, codici e semestri conformi all'offerta didattica di Ateneo) e altri corsi di laurea di riferimento.
+  - Caricamento con 1 click dei corsi predefiniti sia dalla vista Corsi che dalle Impostazioni del Profilo Studente, con possibilità completa di modifica, personalizzazione o rimozione.
+- **Riorganizzazione Sezione "Corsi"**:
+  - Layout compatto e moderno a griglia (2-3 colonne su desktop, 1 su mobile) con schede informative sintetiche (CFU, Docente, Aula, % frequenza, badge lezioni da recuperare, avanzamento argomenti).
+  - Filtri istantanei per Anno di corso (1° Anno, 2° Anno, 3° Anno, Tutti), Semestre (1°, 2°, Annuale, Tutti) e barra di ricerca in tempo reale.
+- **Riorganizzazione Menu Laterale, Profilo e Tema Chiaro/Scuro**:
+  - Pulsante toggle dedicato per Tema Chiaro / Scuro (Sole / Luna) posizionato nella barra superiore accanto alla campanella delle notifiche.
+  - Menu a tendina del profilo utente in alto a destra con accesso a Profilo Studente, Impostazioni, I Miei Corsi e Appelli.
+  - Rimozione della voce "Impostazioni" dal menu laterale per una navigazione più pulita.
+- **Miglioramenti Calendario & Colore Tema Corsi Dinamico**:
+  - Il bottone "Oggi" ha ora le stesse dimensioni, altezza, padding e risalto visivo dei selettori di visualizzazione "Mese", "Settimana" e "Giorno".
+  - Il colore personalizzato assegnato a ciascun corso viene applicato dinamicamente a tutte le sue lezioni nel calendario (sfondo, bordi, badge e indicatori) invece di essere forzato a un colore unico.
+- **Importazione Eventi da Calendari Esterni**:
+  - Supporto per importare file di calendario standard `.ics` (RFC 5545) da Apple iCalendar, Google Calendar o Outlook.
+  - Supporto per importare da URL WebCal / iCal pubblico o link di condivisione calendario.
+  - Supporto per importare esportazioni CSV da database Notion o fogli di calcolo, con tabella di mappatura interattiva dei corsi e delle categorie prima dell'importazione.
+
 ## [v1.0.13] - 2026-09-02
 
 ### Nuove Funzionalità e Miglioramenti

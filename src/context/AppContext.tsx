@@ -24,6 +24,7 @@ import {
   initialWeeklyGoals,
   initialHabits,
 } from '../mockData';
+import { DEGREE_PROGRAMS } from '../data/degreePrograms';
 
 interface AppContextType {
   currentView: NavView;
@@ -34,6 +35,7 @@ interface AppContextType {
   addCorso: (corso: Omit<Corso, 'id'>) => void;
   updateCorso: (courseId: string, updates: Partial<Corso>) => void;
   deleteCorso: (courseId: string) => void;
+  loadPredefinedCoursesForProgram: (programId: string, replaceExisting?: boolean) => void;
   updateCorsoProgress: (courseId: string, progress: number) => void;
   toggleCourseTopic: (courseId: string, topicId: string) => void;
   addTopicToCorso: (courseId: string, topicName: string) => void;
@@ -299,6 +301,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteCorso = (courseId: string) => {
     setCorsi((prev) => prev.filter((c) => c.id !== courseId));
+  };
+
+  const loadPredefinedCoursesForProgram = (programId: string, replaceExisting: boolean = true) => {
+    const program = DEGREE_PROGRAMS.find((p) => p.id === programId);
+    if (!program) return;
+
+    const newCourses: Corso[] = program.courses.map((c, idx) => ({
+      progress: 0,
+      notesOrganized: 0,
+      repetitionsDone: 0,
+      repetitionsTotal: 10,
+      attendanceMandatory: false,
+      minAttendancePercentage: 75,
+      lezioni: [],
+      ...c,
+      id: `course_${programId}_${idx}_${Date.now()}`,
+    }));
+
+    if (replaceExisting) {
+      setCorsi(newCourses);
+    } else {
+      setCorsi((prev) => {
+        const existingNames = new Set(prev.map((c) => c.name.toLowerCase()));
+        const toAdd = newCourses.filter((c) => !existingNames.has(c.name.toLowerCase()));
+        return [...prev, ...toAdd];
+      });
+    }
+
+    setUserSettings((prev) => ({
+      ...prev,
+      studyProgram: program.name,
+      university: program.university,
+    }));
   };
 
   const updateCorsoProgress = (courseId: string, progress: number) => {
@@ -825,6 +860,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addCorso,
         updateCorso,
         deleteCorso,
+        loadPredefinedCoursesForProgram,
         updateCorsoProgress,
         toggleCourseTopic,
         addTopicToCorso,
