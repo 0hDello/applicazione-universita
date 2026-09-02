@@ -1,5 +1,13 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.13] - 2026-09-02
+
+### Nuove Funzionalità e Miglioramenti
+
+- **Appunti Presi & Editor Note per Lezione**: Ripristinato e potenziato il toggle "Appunti presi" direttamente sulle schede delle lezioni, con editor note inline dedicato per scrivere, consultare e modificare gli appunti di ciascuna lezione e filtro rapido per stato appunti.
+- **Importazione Orario da Screenshot (OCR) Potenziata**: Algoritmo di riconoscimento ottico multi-passaggio con pulizia automatica dei refusi OCR, supporto per layout a griglia/colonne, fuzzy matching automatico con i corsi esistenti dell'utente ed editor di testo OCR modificabile con pulsante "Rianalizza".
+- **Tema Scuro Nero Assoluto (Zero Tonalità Blu)**: Riprogettazione cromatica completa del dark mode con sfondi in nero puro (`#000000` / `#09090b`), superfici neutre e massimo contrasto e riposo visivo.
+
 ## [v1.0.12] - 2026-09-01
 
 ### Nuove Funzionalità e Miglioramenti

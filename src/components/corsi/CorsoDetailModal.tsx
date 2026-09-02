@@ -85,6 +85,11 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
   const [newResType, setNewResType] = useState<'PDF' | 'Slide' | 'Link' | 'Video' | 'Registrazione' | 'Formulario' | 'Esercizio'>('PDF');
   const [newResUrl, setNewResUrl] = useState('');
 
+  // Note editing state for existing lectures
+  const [editingNotesLezId, setEditingNotesLezId] = useState<string | null>(null);
+  const [tempNotesText, setTempNotesText] = useState<string>('');
+  const [notesFilter, setNotesFilter] = useState<'tutte' | 'con_appunti' | 'senza_appunti'>('tutte');
+
   const lezioni = course.lezioni || [];
   const courseResources = risorse.filter((r) => r.courseName === course.name);
 
@@ -93,6 +98,12 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
     (l) => (l.status === 'da_recuperare' || l.attendance === 'assente') && !l.recovered
   ).length;
   const notesCount = lezioni.filter((l) => l.hasNotes).length;
+
+  const filteredLezioni = lezioni.filter((l) => {
+    if (notesFilter === 'con_appunti') return l.hasNotes;
+    if (notesFilter === 'senza_appunti') return !l.hasNotes;
+    return true;
+  });
 
   const handleSaveCourseInfo = (e: React.FormEvent) => {
     e.preventDefault();
@@ -325,10 +336,18 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
               <div className="flex flex-col gap-4">
                 {/* Summary KPIs Row */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setNotesFilter('tutte')}
+                    className={`p-3 rounded-2xl text-left border transition-all ${
+                      notesFilter === 'tutte'
+                        ? 'bg-blue-50/80 dark:bg-blue-950/40 border-blue-300 dark:border-blue-800'
+                        : 'bg-slate-50 dark:bg-zinc-900/60 border-slate-100 dark:border-zinc-800'
+                    }`}
+                  >
                     <span className="text-[10px] font-semibold text-slate-400 block">Totale lezioni</span>
                     <h4 className="text-lg font-extrabold text-slate-900 dark:text-white">{lezioni.length}</h4>
-                  </div>
+                  </button>
                   <div className="p-3 rounded-2xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-100 dark:border-emerald-900/40">
                     <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 block">Svolte / Presente</span>
                     <h4 className="text-lg font-extrabold text-emerald-600">{svolteCount}</h4>
@@ -337,31 +356,61 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                     <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-400 block">Da recuperare</span>
                     <h4 className="text-lg font-extrabold text-amber-600">{recuperareCount}</h4>
                   </div>
-                  <div className="p-3 rounded-2xl bg-purple-50/60 dark:bg-purple-950/30 border border-purple-100 dark:border-purple-900/40">
-                    <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-400 block">Appunti presi</span>
+                  <button
+                    type="button"
+                    onClick={() => setNotesFilter((prev) => (prev === 'con_appunti' ? 'senza_appunti' : prev === 'senza_appunti' ? 'tutte' : 'con_appunti'))}
+                    className={`p-3 rounded-2xl text-left border transition-all ${
+                      notesFilter !== 'tutte'
+                        ? 'bg-purple-50/80 dark:bg-purple-950/40 border-purple-300 dark:border-purple-800'
+                        : 'bg-purple-50/40 dark:bg-purple-950/20 border-purple-100 dark:border-purple-900/40'
+                    }`}
+                    title="Clicca per filtrare per stato appunti"
+                  >
+                    <span className="text-[10px] font-semibold text-purple-700 dark:text-purple-400 block">
+                      Appunti presi {notesFilter === 'con_appunti' ? '(Solo con appunti)' : notesFilter === 'senza_appunti' ? '(Senza appunti)' : ''}
+                    </span>
                     <h4 className="text-lg font-extrabold text-purple-600">{notesCount} / {lezioni.length}</h4>
-                  </div>
+                  </button>
                 </div>
 
                 {/* Action: Add Lecture Button */}
-                <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">
-                    Registro cronologico lezioni
-                  </h4>
-                  <button
-                    onClick={() => setIsAddingLezione(true)}
-                    className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-xs hover:bg-blue-700 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Aggiungi lezione</span>
-                  </button>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">
+                      Registro cronologico lezioni
+                    </h4>
+                    {notesFilter !== 'tutte' && (
+                      <span className="px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[10px] font-bold">
+                        Filtro: {notesFilter === 'con_appunti' ? 'Con appunti' : 'Senza appunti'} ({filteredLezioni.length})
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {notesFilter !== 'tutte' && (
+                      <button
+                        type="button"
+                        onClick={() => setNotesFilter('tutte')}
+                        className="text-[11px] font-bold text-slate-400 hover:text-slate-600 underline"
+                      >
+                        Mostra tutte
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsAddingLezione(true)}
+                      className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-xs hover:bg-blue-700 transition-colors"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>Aggiungi lezione</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Add Lecture Form Drawer */}
                 {isAddingLezione && (
                   <form
                     onSubmit={handleAddLezione}
-                    className="p-5 rounded-3xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col gap-4 text-xs animate-in fade-in duration-150"
+                    className="p-5 rounded-3xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 flex flex-col gap-4 text-xs animate-in fade-in duration-150"
                   >
                     <h5 className="font-bold text-slate-900 dark:text-white text-sm">
                       Nuova Lezione #{lezioni.length + 1}
@@ -378,7 +427,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                           value={newLezioneTitle}
                           onChange={(e) => setNewLezioneTitle(e.target.value)}
                           placeholder="Es. Introduzione agli Integrali"
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold focus:outline-none"
                         />
                       </div>
 
@@ -391,7 +440,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                           required
                           value={newLezioneDate}
                           onChange={(e) => setNewLezioneDate(e.target.value)}
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white focus:outline-none"
                         />
                       </div>
                     </div>
@@ -416,36 +465,54 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                           value={newLezioneRoom}
                           onChange={(e) => setNewLezioneRoom(e.target.value)}
                           placeholder="Es. Aula 4B"
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white focus:outline-none"
                         />
                       </div>
 
                       <div>
                         <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                          Presenza / Stato
+                          Presenza / Frequenza
                         </label>
                         <select
                           value={newLezioneAttendance}
                           onChange={(e) => setNewLezioneAttendance(e.target.value as any)}
-                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none font-bold"
+                          className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white font-bold focus:outline-none"
                         >
-                          <option value="presente">✓ Presente (Svolta)</option>
-                          <option value="assente">✗ Assente (Da recuperare)</option>
-                          <option value="non_registrata">⏳ Non ancora registrata</option>
+                          <option value="presente">🟢 Presente a lezione</option>
+                          <option value="assente">🔴 Assente (da recuperare)</option>
+                          <option value="non_registrata">⚪ Non registrata / Futura</option>
                         </select>
                       </div>
                     </div>
 
                     <div>
                       <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                        Dettaglio Argomenti Trattati (sincronizzato con Programma)
+                        Argomenti dettagliati trattati (sincronizzati con il Programma)
                       </label>
-                      <textarea
-                        rows={2}
+                      <input
+                        type="text"
                         value={newLezioneTopics}
                         onChange={(e) => setNewLezioneTopics(e.target.value)}
-                        placeholder="Elenca i punti chiave o i teoremi spiegati..."
-                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none"
+                        placeholder="Es. Teorema di Weierstrass, continuità, derivabilità"
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                        Note e Appunti presi a lezione
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={newLezioneNotes}
+                        onChange={(e) => {
+                          setNewLezioneNotes(e.target.value);
+                          if (e.target.value.trim().length > 0) {
+                            setNewLezioneHasNotes(true);
+                          }
+                        }}
+                        placeholder="Trascrivi o incolla qui appunti, formule o collegamenti al materiale di studio..."
+                        className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white focus:outline-none"
                       />
                     </div>
 
@@ -455,9 +522,9 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                           type="checkbox"
                           checked={newLezioneHasNotes}
                           onChange={(e) => setNewLezioneHasNotes(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 rounded"
+                          className="w-4 h-4 text-purple-600 rounded"
                         />
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                        <span className="font-semibold text-slate-700 dark:text-zinc-300">
                           Ho già preso o caricato gli appunti per questa lezione
                         </span>
                       </label>
@@ -466,7 +533,7 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                         <button
                           type="button"
                           onClick={() => setIsAddingLezione(false)}
-                          className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 font-semibold"
+                          className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-zinc-800 font-semibold"
                         >
                           Annulla
                         </button>
@@ -482,92 +549,226 @@ export const CorsoDetailModal: React.FC<CorsoDetailModalProps> = ({ course, onCl
                 )}
 
                 {/* Lectures List */}
-                {lezioni.length === 0 ? (
-                  <div className="py-12 px-4 flex flex-col items-center justify-center text-center gap-3 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+                {filteredLezioni.length === 0 ? (
+                  <div className="py-12 px-4 flex flex-col items-center justify-center text-center gap-3 border-2 border-dashed border-slate-200 dark:border-zinc-800 rounded-3xl">
                     <Calendar className="w-8 h-8 text-slate-400" />
                     <div>
                       <h5 className="text-sm font-bold text-slate-900 dark:text-white">
-                        Nessuna lezione registrata per questo corso
+                        {notesFilter !== 'tutte'
+                          ? `Nessuna lezione trovata con filtro "${notesFilter === 'con_appunti' ? 'Con appunti' : 'Senza appunti'}"`
+                          : 'Nessuna lezione registrata per questo corso'}
                       </h5>
                       <p className="text-xs text-slate-400 mt-1 max-w-sm">
                         Aggiungi le lezioni per tracciare presenze, appunti e programma trattato dal docente.
                       </p>
                     </div>
-                    <button
-                      onClick={() => setIsAddingLezione(true)}
-                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-xs hover:bg-blue-700 transition-colors mt-2"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>Aggiungi la prima lezione</span>
-                    </button>
+                    {notesFilter !== 'tutte' ? (
+                      <button
+                        onClick={() => setNotesFilter('tutte')}
+                        className="px-4 py-2 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-700 dark:text-zinc-200 text-xs font-semibold"
+                      >
+                        Mostra tutte le lezioni
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setIsAddingLezione(true)}
+                        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold shadow-xs hover:bg-blue-700 transition-colors mt-2"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Aggiungi la prima lezione</span>
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3">
-                    {lezioni.map((lez) => (
-                      <div
-                        key={lez.id}
-                        className="p-4 rounded-2xl bg-white dark:bg-slate-800/80 border border-slate-100 dark:border-slate-700/80 shadow-xs flex flex-col gap-2.5 hover:border-slate-300 dark:hover:border-slate-600 transition-all"
-                      >
-                        <div className="flex items-start justify-between gap-3 flex-wrap">
-                          <div className="flex items-center gap-2.5">
-                            <span className="w-7 h-7 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center shrink-0">
-                              #{lez.number}
-                            </span>
-                            <div>
-                              <h5 className="text-xs font-bold text-slate-900 dark:text-white">
-                                {lez.title}
-                              </h5>
-                              <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-0.5">
-                                <span className="flex items-center gap-1">
-                                  <Calendar className="w-3 h-3 text-slate-400" /> {lez.date}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="w-3 h-3 text-slate-400" /> {lez.time}
-                                </span>
-                                {lez.room && (
+                    {filteredLezioni.map((lez) => {
+                      const isEditingThisNote = editingNotesLezId === lez.id;
+
+                      return (
+                        <div
+                          key={lez.id}
+                          className="p-4 rounded-2xl bg-white dark:bg-zinc-900 border border-slate-100 dark:border-zinc-800 shadow-xs flex flex-col gap-3 hover:border-slate-300 dark:hover:border-zinc-700 transition-all"
+                        >
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div className="flex items-center gap-2.5">
+                              <span className="w-7 h-7 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 font-extrabold text-xs flex items-center justify-center shrink-0">
+                                #{lez.number}
+                              </span>
+                              <div>
+                                <h5 className="text-xs font-bold text-slate-900 dark:text-white">
+                                  {lez.title}
+                                </h5>
+                                <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-0.5">
                                   <span className="flex items-center gap-1">
-                                    <MapPin className="w-3 h-3 text-slate-400" /> {lez.room}
+                                    <Calendar className="w-3 h-3 text-slate-400" /> {lez.date}
                                   </span>
-                                )}
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-slate-400" /> {lez.time}
+                                  </span>
+                                  {lez.room && (
+                                    <span className="flex items-center gap-1">
+                                      <MapPin className="w-3 h-3 text-slate-400" /> {lez.room}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {/* ATTENDANCE TOGGLE BADGE */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextAtt =
+                                    lez.attendance === 'presente'
+                                      ? 'assente'
+                                      : lez.attendance === 'assente'
+                                      ? 'non_registrata'
+                                      : 'presente';
+                                  updateLezione(course.id, lez.id, {
+                                    attendance: nextAtt,
+                                    status: nextAtt === 'assente' ? 'da_recuperare' : 'svolta',
+                                    topicCompleted: nextAtt === 'presente',
+                                  });
+                                }}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer ${
+                                  lez.attendance === 'presente'
+                                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+                                    : lez.attendance === 'assente'
+                                    ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400 border-red-200 dark:border-red-800'
+                                    : 'bg-slate-100 text-slate-500 dark:bg-zinc-800 dark:text-zinc-400 border-slate-200 dark:border-zinc-700'
+                                }`}
+                                title="Clicca per cambiare presenza"
+                              >
+                                {lez.attendance === 'presente'
+                                  ? '🟢 Presente'
+                                  : lez.attendance === 'assente'
+                                  ? '🔴 Assente'
+                                  : '⚪ Non registrata'}
+                              </button>
+
+                              {/* APPUNTI PRESI TOGGLE BUTTON */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  updateLezione(course.id, lez.id, {
+                                    hasNotes: !lez.hasNotes,
+                                  });
+                                }}
+                                className={`px-2.5 py-1 rounded-xl text-[10px] font-bold border transition-colors cursor-pointer flex items-center gap-1 ${
+                                  lez.hasNotes
+                                    ? 'bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-300 border-purple-200 dark:border-purple-800'
+                                    : 'bg-slate-100 text-slate-400 dark:bg-zinc-800 dark:text-zinc-500 border-slate-200 dark:border-zinc-700 hover:text-purple-600 dark:hover:text-purple-300'
+                                }`}
+                                title={lez.hasNotes ? 'Segna come non presi' : 'Segna come appunti presi'}
+                              >
+                                <FileText className="w-3.5 h-3.5" />
+                                <span>{lez.hasNotes ? 'Appunti presi ✓' : 'Senza appunti'}</span>
+                              </button>
+
+                              {/* WRITE / EDIT NOTE BUTTON */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isEditingThisNote) {
+                                    setEditingNotesLezId(null);
+                                  } else {
+                                    setEditingNotesLezId(lez.id);
+                                    setTempNotesText(lez.notes || '');
+                                  }
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/40 transition-colors"
+                                title="Scrivi o modifica appunti"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => deleteLezione(course.id, lez.id)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                                title="Elimina lezione"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            {/* Attendance badge */}
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                lez.attendance === 'presente'
-                                  ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-400'
-                                  : lez.attendance === 'assente'
-                                  ? 'bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400'
-                                  : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'
-                              }`}
-                            >
-                              {lez.attendance === 'presente'
-                                ? 'Presente'
-                                : lez.attendance === 'assente'
-                                ? 'Assente'
-                                : 'Non registrata'}
-                            </span>
+                          {/* Topics line */}
+                          {lez.topicsCovered && (
+                            <p className="text-[11px] text-slate-600 dark:text-zinc-300 bg-slate-50 dark:bg-black/60 p-2.5 rounded-xl border border-slate-100 dark:border-zinc-800">
+                              <strong>Argomenti:</strong> {lez.topicsCovered}
+                            </p>
+                          )}
 
-                            <button
-                              onClick={() => deleteLezione(course.id, lez.id)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 transition-colors"
-                              title="Elimina lezione"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          {/* Existing Notes Preview */}
+                          {!isEditingThisNote && lez.notes && (
+                            <div className="p-3 rounded-2xl bg-purple-50/50 dark:bg-purple-950/20 border border-purple-100 dark:border-purple-900/40 flex flex-col gap-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 flex items-center gap-1">
+                                  <FileText className="w-3 h-3" />
+                                  Appunti lezione #{lez.number}:
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingNotesLezId(lez.id);
+                                    setTempNotesText(lez.notes || '');
+                                  }}
+                                  className="text-[10px] font-bold text-purple-600 dark:text-purple-400 hover:underline"
+                                >
+                                  Modifica
+                                </button>
+                              </div>
+                              <p className="text-xs text-slate-800 dark:text-zinc-200 whitespace-pre-wrap">
+                                {lez.notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* INLINE NOTE EDITOR DRAWER */}
+                          {isEditingThisNote && (
+                            <div className="p-3 rounded-2xl bg-purple-50/70 dark:bg-zinc-950 border border-purple-200 dark:border-purple-900/60 flex flex-col gap-2.5 animate-in fade-in duration-150">
+                              <div className="flex items-center justify-between">
+                                <label className="font-bold text-xs text-purple-900 dark:text-purple-200 flex items-center gap-1.5">
+                                  <FileText className="w-3.5 h-3.5 text-purple-600" />
+                                  <span>Modifica Appunti Lezione #{lez.number}</span>
+                                </label>
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingNotesLezId(null)}
+                                    className="px-2.5 py-1 rounded-xl text-slate-500 text-[11px] font-bold hover:bg-slate-200 dark:hover:bg-zinc-800"
+                                  >
+                                    Annulla
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updateLezione(course.id, lez.id, {
+                                        notes: tempNotesText.trim(),
+                                        hasNotes: tempNotesText.trim().length > 0 ? true : lez.hasNotes,
+                                      });
+                                      setEditingNotesLezId(null);
+                                    }}
+                                    className="px-3.5 py-1 rounded-xl bg-purple-600 text-white font-bold text-[11px] shadow-xs hover:bg-purple-700 transition-colors cursor-pointer"
+                                  >
+                                    Salva Appunti
+                                  </button>
+                                </div>
+                              </div>
+                              <textarea
+                                rows={4}
+                                value={tempNotesText}
+                                onChange={(e) => setTempNotesText(e.target.value)}
+                                placeholder="Scrivi o incolla qui i tuoi appunti della lezione..."
+                                className="w-full px-3 py-2 rounded-xl bg-white dark:bg-black border border-purple-200 dark:border-zinc-700 text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20"
+                                autoFocus
+                              />
+                            </div>
+                          )}
                         </div>
-
-                        {lez.topicsCovered && (
-                          <p className="text-[11px] text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
-                            <strong>Argomenti:</strong> {lez.topicsCovered}
-                          </p>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

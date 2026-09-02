@@ -6,6 +6,17 @@
   --color-blue-600: var(--color-primary);
   --color-blue-700: var(--color-primary-hover);
   --color-blue-500: var(--color-primary);
+
+  /* TRUE PITCH BLACK & NEUTRAL DARK THEME - ZERO BLUE TINT */
+  --color-slate-950: #000000;
+  --color-slate-900: #09090b;
+  --color-slate-850: #121215;
+  --color-slate-800: #18181b;
+  --color-slate-750: #202024;
+  --color-slate-700: #27272a;
+  --color-slate-600: #3f3f46;
+  --color-slate-500: #71717a;
+  --color-slate-400: #a1a1aa;
 }
 
 :root {
@@ -38,6 +49,12 @@ html[data-font-size="xlarge"] {
 @layer base {
   html.dark {
     color-scheme: dark;
+    background-color: #000000;
+  }
+
+  html.dark body {
+    background-color: #000000;
+    color: #f4f4f5;
   }
 
   body {
@@ -70,4 +87,3 @@ html[data-font-size="xlarge"] {
   width: 100%;
   min-height: 100vh;
 }
-
