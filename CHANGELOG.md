@@ -1,5 +1,19 @@
 # Changelog - Applicazione Universita
 
+## [v1.0.17] - 2026-09-03
+
+### Correzioni e Miglioramenti Importazione Orario (Griglia & Agenda UniBo)
+
+- **Riconoscimento Geometrico Screenshot Griglia Calendario (`image.png`)**:
+  - Implementato analizzatore 2D basato su coordinate e bounding box: rileva le colonne dei giorni della settimana (`LUN 14/9`, `MAR 15/9`, `MER 16/9`, `GIO 17/9`, `VEN 18/9`) e mappa l'asse orario verticale (`08`, `09`, `10`, `11`, `12`, `13`, `14`, `15`).
+  - Assegna correttamente ogni card di lezione al suo giorno esatto e fascia oraria, impedendo che i testi di colonne diverse vengano mescolati dall'OCR orizzontale.
+- **Risoluzione Bug "Periodo" e Calcolo Automatico Giorni (`image2.png`)**:
+  - **Eliminazione lezioni fantasma da periodo**: le righe `Periodo: 14 settembre 2026 - 16 dicembre 2026` vengono ora riconosciute come intervallo di validità del corso e non più scambiate per orari di lezione giornalieri (`14:00 - 16:00`).
+  - **Calcolo automatico del giorno della settimana da data**: righe con date come `14 SETTEMBRE 2026`, `15 SETTEMBRE 2026`, `16 SETTEMBRE 2026` o `LUN 14/9` calcolano in automatico il giorno reale (`Lunedì`, `Martedì`, `Mercoledì`, ecc.) senza rimanere bloccate sul valore predefinito.
+  - **Estrazione codice corso e docente**: estrazione automatica del codice insegnamento a 5 cifre (es. `29228`, `29225`, `28622`), docente e aula.
+- **Supporto Copia/Incolla Testo Portale Studenti**:
+  - Nella scheda *"Incolla Testo Portale / Tabella CSV"*, supporto nativo all'incolla diretto dell'elenco lezioni dal portale universitario con pulsante di esempio reale UniBo.
+
 ## [v1.0.16] - 2026-09-02
 
 ### Nuove Funzionalità e Miglioramenti

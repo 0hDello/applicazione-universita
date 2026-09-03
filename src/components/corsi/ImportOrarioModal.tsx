@@ -21,6 +21,8 @@ import {
   CheckCircle2,
   RotateCcw,
   Edit3,
+  Calendar,
+  Grid,
 } from 'lucide-react';
 
 interface ImportOrarioModalProps {
@@ -38,6 +40,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
   const [ocrStatus, setOcrStatus] = useState<string>('');
   const [rawOcrText, setRawOcrText] = useState<string>('');
   const [showRawTextEditor, setShowRawTextEditor] = useState<boolean>(false);
+  const [isGridDetected, setIsGridDetected] = useState<boolean>(false);
   const [rawBulkText, setRawBulkText] = useState<string>('');
 
   // Editable parsed slots
@@ -57,6 +60,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
     // Reset previous extraction
     setParsedSlots([]);
     setRawOcrText('');
+    setIsGridDetected(false);
     setShowRawTextEditor(false);
   };
 
@@ -67,14 +71,18 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
     setOcrStatus('Inizializzazione motore OCR in corso...');
 
     try {
-      const text = await runOCR(selectedImage, (prog, status) => {
-        setOcrProgress(prog);
-        setOcrStatus(status === 'recognizing text' ? `Riconoscimento testo... ${prog}%` : status);
-      });
+      const result = await runOCR(
+        selectedImage,
+        (prog, status) => {
+          setOcrProgress(prog);
+          setOcrStatus(status === 'recognizing text' ? `Riconoscimento e analisi layout... ${prog}%` : status);
+        },
+        corsi
+      );
 
-      setRawOcrText(text);
-      const slots = parseTimetableText(text, corsi);
-      setParsedSlots(slots);
+      setRawOcrText(result.text);
+      setParsedSlots(result.slots);
+      setIsGridDetected(result.isGridDetected);
       setIsProcessing(false);
     } catch (err) {
       console.error('OCR Error:', err);
@@ -126,6 +134,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
           ? {
               ...s,
               courseName: selectedCourse.name,
+              code: selectedCourse.code || s.code,
               matchedCourseId: selectedCourse.id,
               matchedCourseColor: selectedCourse.color,
               matchScore: 1.0,
@@ -148,6 +157,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
       startTime: '09:00',
       endTime: '11:00',
       courseName: defaultCourse?.name || 'Nuovo Corso',
+      code: defaultCourse?.code,
       matchedCourseId: defaultCourse?.id,
       matchedCourseColor: defaultCourse?.color,
       matchScore: defaultCourse ? 1.0 : 0,
@@ -194,10 +204,11 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
     parsedSlots.forEach((slot) => {
       const dates = getDatesForWeekday(slot.day, recurrenceWeeks);
 
-      // 1. Find matching course in existing study plan or by name
+      // 1. Find matching course in existing study plan or by name/code
       let matchedCourse = corsi.find(
         (c) =>
           c.id === slot.matchedCourseId ||
+          (slot.code && c.code && c.code === slot.code) ||
           c.name.toLowerCase() === slot.courseName.toLowerCase()
       );
 
@@ -205,7 +216,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
       if (!matchedCourse && slot.courseName && slot.courseName.length > 2) {
         const newCorsoId = `corso_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
         addCorso({
-          code: 'GEN001',
+          code: slot.code || 'GEN001',
           name: slot.courseName,
           professor: slot.professor || 'Docente da definire',
           cfu: 6,
@@ -225,7 +236,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
         matchedCourse = {
           id: newCorsoId,
           name: slot.courseName,
-          code: 'GEN001',
+          code: slot.code || 'GEN001',
           professor: slot.professor || '',
           cfu: 6,
           color: '#2563eb',
@@ -244,6 +255,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
         updateCorso(matchedCourse.id, {
           aulaAbituale: slot.room,
           orarioAbituale: `${slot.startTime} - ${slot.endTime}`,
+          professor: slot.professor || matchedCourse.professor,
         });
       }
 
@@ -299,7 +311,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                 Importa Orario delle Lezioni (OCR Screenshot & Testo)
               </h3>
               <p className="text-xs text-slate-400">
-                Riconoscimento intelligente dei corsi dal tuo piano di studi, categorizzazione automatica e sincronizzazione presenze.
+                Riconoscimento intelligente: supporta sia la griglia settimanale che l'elenco agenda (UniBo / Esse3).
               </p>
             </div>
           </div>
@@ -322,7 +334,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
             }`}
           >
             <FileImage className="w-4 h-4" />
-            <span>Screenshot / Foto Orario (OCR)</span>
+            <span>Screenshot Orario (Griglia o Agenda)</span>
           </button>
           <button
             onClick={() => setActiveTab('bulk')}
@@ -333,7 +345,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
             }`}
           >
             <FileText className="w-4 h-4" />
-            <span>Testo Incollato / Tabella CSV</span>
+            <span>Incolla Testo Portale / Tabella CSV</span>
           </button>
         </div>
 
@@ -375,7 +387,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                         {selectedImage ? selectedImage.name : 'Seleziona o trascina lo screenshot del tuo orario'}
                       </p>
                       <p className="text-[11px] text-slate-400 mt-0.5">
-                        PNG, JPG o screenshot del portale universitario o dell'app studenti.
+                        Supporta screenshot della tabella settimanale o della vista elenco lezioni (UniBo, Esse3, ecc.).
                       </p>
                     </div>
                   </div>
@@ -401,7 +413,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                           ) : (
                             <>
                               <Sparkles className="w-4 h-4" />
-                              <span>Avvia Riconoscimento OCR</span>
+                              <span>Avvia Riconoscimento Intelligente</span>
                             </>
                           )}
                         </button>
@@ -427,6 +439,27 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                     </div>
                   )}
 
+                  {/* Recognition Layout Badge */}
+                  {parsedSlots.length > 0 && (
+                    <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 text-emerald-800 dark:text-emerald-300">
+                      {isGridDetected ? (
+                        <>
+                          <Grid className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="font-bold text-xs">
+                            🎯 Griglia Settimanale Riconosciuta: colonne dei giorni e orari verticali mappati automaticamente.
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span className="font-bold text-xs">
+                            🎯 Elenco Lezioni Agenda Riconosciuto: date, orari, codici materia e aule estratti con precisione.
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  )}
+
                   {/* Raw OCR Text Correction Editor */}
                   {rawOcrText && (
                     <div className="p-3 bg-slate-50 dark:bg-zinc-900/60 rounded-2xl border border-slate-200 dark:border-zinc-800 flex flex-col gap-2">
@@ -434,7 +467,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                         <button
                           type="button"
                           onClick={() => setShowRawTextEditor(!showRawTextEditor)}
-                          className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 font-bold hover:underline"
+                          className="flex items-center gap-1 text-slate-600 dark:text-zinc-300 font-bold hover:underline cursor-pointer"
                         >
                           <Edit3 className="w-3.5 h-3.5" />
                           <span>{showRawTextEditor ? 'Nascondi testo grezzo OCR' : 'Correggi manualmente testo OCR estratto'}</span>
@@ -443,7 +476,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                         <button
                           type="button"
                           onClick={handleReanalyzeOcrText}
-                          className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-600 text-white text-[11px] font-bold shadow-xs hover:bg-blue-700"
+                          className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-600 text-white text-[11px] font-bold shadow-xs hover:bg-blue-700 cursor-pointer"
                         >
                           <RotateCcw className="w-3 h-3" />
                           <span>⚡ Rianalizza Testo</span>
@@ -467,31 +500,31 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                 <div className="flex flex-col gap-4">
                   <div>
                     <label className="font-bold text-slate-900 dark:text-white block mb-1">
-                      Incolla tabella orario o elenco lezioni (Testo, CSV, TSV)
+                      Incolla testo dal Portale Studenti (Agenda UniBo) o tabella CSV
                     </label>
                     <p className="text-[11px] text-slate-400 mb-2">
-                      Formato supportato: <code className="bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono">Giorno, Orario, Nome Corso, Aula</code>
+                      Supporta il testo copiato direttamente dal sito universitario (con data, codice materia, docente e aula) oppure formato CSV: <code className="bg-slate-100 dark:bg-zinc-800 px-1 py-0.5 rounded font-mono">Giorno, Orario, Nome Corso, Aula</code>
                     </p>
                     <textarea
-                      rows={6}
+                      rows={8}
                       value={rawBulkText}
                       onChange={(e) => setRawBulkText(e.target.value)}
-                      placeholder="Lunedì, 09:00 - 11:00, Analisi Matematica T-A, Aula Magna&#10;Martedì, 11:00 - 13:00, Fisica Generale T-A, Aula 2.1&#10;Mercoledì, 14:00 - 16:00, Fondamenti di Chimica T, Aula 1.2&#10;Giovedì, 09:00 - 11:00, Geometria e Algebra T, Aula 2.1&#10;Venerdì, 11:00 - 13:00, Idoneità Lingua Inglese B-2, CLA"
+                      placeholder={`14 SETTEMBRE 2026\n09:00 - 11:00  29228 - GEOMETRIA E ALGEBRA T (6 CFU)\nDocente: Marta Morigi\nLuogo: RANZANI B\n\n15 SETTEMBRE 2026\n11:00 - 14:00  29225 - FONDAMENTI DI CHIMICA T (6 CFU)\nDocente: Michelina Soccio\nLuogo: RANZANI B`}
                       className="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 text-slate-900 dark:text-white font-mono text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                     />
                   </div>
 
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() =>
                         setRawBulkText(
-                          "Lunedì, 09:00 - 11:00, Analisi Matematica T-A, Aula Magna\nMartedì, 11:00 - 13:00, Fisica Generale T-A, Aula 2.1\nMercoledì, 14:00 - 16:00, Fondamenti di Chimica T, Aula 1.2\nGiovedì, 09:00 - 11:00, Geometria e Algebra T, Aula 2.1\nVenerdì, 11:00 - 13:00, Idoneità Lingua Inglese B-2, CLA"
+                          "14 SETTEMBRE 2026\n\n09:00 - 11:00  29228 - GEOMETRIA E ALGEBRA T (6 CFU)\nPeriodo: 14 settembre 2026 - 16 dicembre 2026\nDocente: Marta Morigi\nLuogo: RANZANI B - Piano Terra - Edificio in Bo - via C. Ranzani, 14\n\n15 SETTEMBRE 2026\n\n11:00 - 14:00  29225 - FONDAMENTI DI CHIMICA T (6 CFU)\nPeriodo: 15 settembre 2026 - 17 dicembre 2026\nDocente: Michelina Soccio\nLuogo: RANZANI B - Piano Terra - Edificio in Bo - via C. Ranzani, 14\n\n16 SETTEMBRE 2026\n\n14:00 - 17:00  29228 - GEOMETRIA E ALGEBRA T (6 CFU)\nPeriodo: 14 settembre 2026 - 16 dicembre 2026\nDocente: Marta Morigi\nLuogo: RANZANI B - Piano Terra - Edificio in Bo - via C. Ranzani, 14\n\n17:00 - 19:00  28622 - ANALISI MATEMATICA T-A (6 CFU)\nPeriodo: 16 settembre 2026 - 17 dicembre 2026\nDocente: Francesco Uguzzoni\nLuogo: RANZANI B - Piano Terra - Edificio in Bo - via C. Ranzani, 14"
                         )
                       }
-                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline"
+                      className="text-blue-600 dark:text-blue-400 font-bold hover:underline cursor-pointer"
                     >
-                      Carica esempio orario UniBo
+                      📋 Carica orario reale UniBo (Ingegneria Meccanica)
                     </button>
 
                     <button
@@ -499,7 +532,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                       onClick={handleParseBulk}
                       className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold shadow-md shadow-blue-600/20 hover:bg-blue-700 transition-colors cursor-pointer"
                     >
-                      Analizza Tabella
+                      Analizza Testo / Tabella
                     </button>
                   </div>
                 </div>
@@ -579,7 +612,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                           <div className="flex-1 min-w-[180px]">
                             <div className="flex items-center justify-between mb-0.5">
                               <label className="text-[9px] font-bold text-slate-400 uppercase">
-                                Corso Associato
+                                Corso Associato {slot.code ? `(Cod. ${slot.code})` : ''}
                               </label>
                               {isMatched && (
                                 <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
@@ -603,7 +636,7 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                               >
                                 {corsi.map((c) => (
                                   <option key={c.id} value={c.id}>
-                                    {c.name} ({c.cfu} CFU)
+                                    {c.name} {c.code ? `[${c.code}]` : ''} ({c.cfu} CFU)
                                   </option>
                                 ))}
                                 {!slot.matchedCourseId && (
@@ -622,6 +655,18 @@ export const ImportOrarioModal: React.FC<ImportOrarioModalProps> = ({ onClose })
                               onChange={(e) => handleSlotChange(slot.id, 'room', e.target.value)}
                               placeholder="Aula..."
                               className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white text-xs"
+                            />
+                          </div>
+
+                          {/* Docente */}
+                          <div className="w-32 shrink-0 hidden md:block">
+                            <label className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Docente</label>
+                            <input
+                              type="text"
+                              value={slot.professor || ''}
+                              onChange={(e) => handleSlotChange(slot.id, 'professor', e.target.value)}
+                              placeholder="Docente..."
+                              className="w-full px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-black border border-slate-200 dark:border-zinc-700 text-slate-900 dark:text-white text-xs"
                             />
                           </div>
 
